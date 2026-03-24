@@ -362,7 +362,7 @@ def code_assembly(state: PPTState) -> dict:
     theme = state["slide_spec"]["ppt_state"]["presentation"]["meta"]["theme"]
     generated_slides = state["generated_slides"]
 
-    # Build theme object
+    # Build theme object with glass design tokens
     theme_obj = json.dumps(
         {
             "primary": theme["primary_color"],
@@ -372,6 +372,10 @@ def code_assembly(state: PPTState) -> dict:
             "red": "#E53E3E",
             "yellow": "#F6C90E",
             "green": "#38A169",
+            "glass": "rgba(255,255,255,0.04)",
+            "glassBorder": "rgba(255,255,255,0.08)",
+            "glassBright": "rgba(255,255,255,0.08)",
+            "glassBorderBright": "rgba(255,255,255,0.15)",
         },
         indent=2,
     )

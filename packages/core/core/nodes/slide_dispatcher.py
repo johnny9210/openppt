@@ -135,10 +135,15 @@ def slide_dispatcher(state: PPTState) -> Command:
         # Edit mode: only regenerate target slide
         slides = [s for s in slides if s["slide_id"] == state["target_slide_id"]]
 
-    # On semantic retry, narrow dispatch to only slides with failed slots
+    # On semantic retry, narrow dispatch to only failed slides
     if is_semantic_retry:
-        failed_ids = _find_failed_slide_ids(slides, missing_slots)
-        # Safety: if mapping found no slides (shouldn't happen), fall back to all
+        # New semantic_validator returns slide_ids directly in missing_slots
+        failed_ids = set(missing_slots)
+        # Also check failed_slide_ids field (new format)
+        failed_ids.update(validation.get("failed_slide_ids", []))
+        if not failed_ids:
+            # Fallback: try old slot-based mapping
+            failed_ids = _find_failed_slide_ids(slides, missing_slots)
         if failed_ids:
             slides = [s for s in slides if s["slide_id"] in failed_ids]
 
