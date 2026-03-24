@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["ppt_state"],
+  "properties": {
+    "ppt_state": {
+      "type": "object",
+      "required": ["session_id", "mode", "presentation"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "mode": { "enum": ["create", "edit"] },
+        "target_slide_id": { "type": ["string", "null"] },
+        "revision_count": { "type": "integer", "minimum": 0 },
+        "presentation": {
+          "type": "object",
+          "required": ["meta", "slides"],
+          "properties": {
+            "meta": {
+              "type": "object",
+              "required": ["title", "theme", "total_slides"],
+              "properties": {
+                "title": { "type": "string" },
+                "theme": {
+                  "type": "object",
+                  "required": ["primary_color", "accent_color", "background", "text_color"],
+                  "properties": {
+                    "primary_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+                    "accent_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+                    "background": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+                    "text_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+                  }
+                },
+                "total_slides": { "type": "integer", "minimum": 1, "maximum": 30 },
+                "language": { "type": "string", "default": "ko" }
+              }
+            },
+            "slides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["slide_id", "index", "type", "state", "content", "slots"],
+                "properties": {
+                  "slide_id": { "type": "string", "pattern": "^slide_\\d{3}$" },
+                  "index": { "type": "integer", "minimum": 0 },
+                  "type": {
+                    "enum": [
+                      "cover", "table_of_contents", "data_visualization",
+                      "key_points", "risk_analysis", "action_plan"
+                    ]
+                  },
+                  "state": {
+                    "enum": [
+                      "INITIAL", "NAVIGATION", "DATA_HEAVY",
+                      "CONTENT_RICH", "ANALYTICAL", "CONCLUDING"
+                    ]
+                  },
+                  "content": { "type": "object" },
+                  "slots": { "type": "object" }
+                }
+              },
+              "minItems": 1,
+              "maxItems": 30
+            }
+          }
+        }
+      }
+    }
+  }
+}

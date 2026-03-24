@@ -1,0 +1,20 @@
+{
+  "name": "ppt-codegen-validator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/parser": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-react": "^7.26.0",
+    "express": "^5.0.0",
+    "jsdom": "^25.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

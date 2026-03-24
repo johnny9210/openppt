@@ -1,0 +1,170 @@
+{
+  "ppt_state": {
+    "session_id": "sess_20241201_001",
+    "mode": "create",
+    "target_slide_id": null,
+    "revision_count": 0,
+
+    "presentation": {
+      "meta": {
+        "title": "2024년 4분기 AI 사업부 성과 보고서",
+        "theme": {
+          "primary_color": "#1B3A6B",
+          "accent_color": "#2E86AB",
+          "background": "#0A0F1E",
+          "text_color": "#F0F4FF"
+        },
+        "total_slides": 6,
+        "language": "ko"
+      },
+      "slides": [
+        {
+          "slide_id": "slide_001",
+          "index": 0,
+          "type": "cover",
+          "state": "INITIAL",
+          "content": {
+            "title": "2024년 4분기 AI 사업부 성과 보고서",
+            "subtitle": "AI Division Performance Report Q4 2024",
+            "date": "2024.12",
+            "department": "AI 사업부"
+          },
+          "slots": {
+            "title_size": "if_title_length_gt_30 → font_size_down",
+            "subtitle": "if_subtitle_exists → render_subtitle_slot",
+            "background": "gradient_dark"
+          }
+        },
+        {
+          "slide_id": "slide_002",
+          "index": 1,
+          "type": "table_of_contents",
+          "state": "NAVIGATION",
+          "content": {
+            "items": [
+              {"number": 1, "label": "매출 현황",   "target_slide": "slide_003"},
+              {"number": 2, "label": "주요 성과",   "target_slide": "slide_004"},
+              {"number": 3, "label": "리스크 분석", "target_slide": "slide_005"},
+              {"number": 4, "label": "액션플랜",    "target_slide": "slide_006"}
+            ]
+          },
+          "slots": {
+            "list_layout": "if_item_count_lte_5 → single_column_slot"
+          }
+        },
+        {
+          "slide_id": "slide_003",
+          "index": 2,
+          "type": "data_visualization",
+          "state": "DATA_HEAVY",
+          "content": {
+            "title": "2024년 분기별 매출 현황",
+            "chart": {
+              "chart_type": "bar",
+              "data": {
+                "labels": ["Q1", "Q2", "Q3", "Q4"],
+                "series": [
+                  {"name": "매출 (억원)", "values": [42, 58, 71, 89]}
+                ]
+              },
+              "options": {
+                "highlight_last_bar": true,
+                "show_data_labels": true,
+                "y_axis_title": "매출 (억원)"
+              }
+            },
+            "insight_text": "Q4 전분기 대비 25.4% 성장"
+          },
+          "slots": {
+            "chart_renderer": "chart_type=bar → BarChart_slot",
+            "callout_box": "insight_text exists → CalloutBox_slot",
+            "bar_highlight": "highlight_last_bar=true → accent_color_slot"
+          }
+        },
+        {
+          "slide_id": "slide_004",
+          "index": 3,
+          "type": "key_points",
+          "state": "CONTENT_RICH",
+          "content": {
+            "title": "주요 성과",
+            "items": [
+              {
+                "icon": "trophy",
+                "headline": "신규 고객 확보",
+                "body": "Fortune 500 기업 3사 계약 체결",
+                "metric": "+47%"
+              },
+              {
+                "icon": "rocket",
+                "headline": "제품 출시",
+                "body": "AI 어시스턴트 v2.0 런칭",
+                "metric": "MAU 12만"
+              },
+              {
+                "icon": "shield",
+                "headline": "운영 효율화",
+                "body": "자동화로 처리 시간 단축",
+                "metric": "-38%"
+              }
+            ]
+          },
+          "slots": {
+            "grid_layout": "item_count=3 → three_column_slot",
+            "metric_color": "metric_sign → +green_slot | -red_slot"
+          }
+        },
+        {
+          "slide_id": "slide_005",
+          "index": 4,
+          "type": "risk_analysis",
+          "state": "ANALYTICAL",
+          "content": {
+            "title": "리스크 분석",
+            "risks": [
+              {
+                "category": "기술",
+                "description": "LLM API 의존성 집중",
+                "severity": "high",
+                "mitigation": "멀티벤더 전략 수립"
+              },
+              {
+                "category": "시장",
+                "description": "경쟁사 유사 제품 출시",
+                "severity": "medium",
+                "mitigation": "차별화 기능 로드맵 가속"
+              },
+              {
+                "category": "운영",
+                "description": "핵심 인력 이탈 가능성",
+                "severity": "low",
+                "mitigation": "리텐션 프로그램 강화"
+              }
+            ]
+          },
+          "slots": {
+            "severity_badge": "severity → high:red_slot | medium:yellow_slot | low:green_slot"
+          }
+        },
+        {
+          "slide_id": "slide_006",
+          "index": 5,
+          "type": "action_plan",
+          "state": "CONCLUDING",
+          "content": {
+            "title": "Q1 2025 액션플랜",
+            "timeline_items": [
+              {"month": "1월", "action": "멀티벤더 API 전환 완료", "owner": "개발팀"},
+              {"month": "2월", "action": "신규 기능 베타 출시",    "owner": "제품팀"},
+              {"month": "3월", "action": "Fortune 500 2차 계약 타겟팅", "owner": "영업팀"}
+            ]
+          },
+          "slots": {
+            "timeline_layout": "item_count=3 → horizontal_timeline_slot",
+            "owner_tag": "owner exists → render_owner_tag_slot"
+          }
+        }
+      ]
+    }
+  }
+}

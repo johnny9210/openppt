@@ -1,0 +1,55 @@
+services:
+  core:
+    build:
+      context: ./packages/core
+      dockerfile: Dockerfile
+    ports:
+      - "8030:8000"
+    env_file:
+      - .env
+    environment:
+      - VALIDATOR_URL=http://validator:8001
+    volumes:
+      - ./packages/core:/app
+      - ./packages/design-system:/app/design-system
+      - ./packages/shared:/app/shared
+    depends_on:
+      - validator
+    networks:
+      - ppt-net
+
+  validator:
+    build:
+      context: ./packages/validator
+      dockerfile: Dockerfile
+    ports:
+      - "8031:8001"
+    volumes:
+      - ./packages/validator:/app
+      - /app/node_modules
+    networks:
+      - ppt-net
+
+  web:
+    build:
+      context: ./packages/web
+      dockerfile: Dockerfile
+    ports:
+      - "3030:3000"
+    env_file:
+      - .env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8030
+      - CORE_API_URL=http://core:8000
+    volumes:
+      - ./packages/web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - core
+    networks:
+      - ppt-net
+
+networks:
+  ppt-net:
+    driver: bridge
