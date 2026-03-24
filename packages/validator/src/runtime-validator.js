@@ -92,9 +92,9 @@ export async function validateRuntime(code, expectedSlideCount, spec) {
       const dom = new JSDOM(html);
       const doc = dom.window.document;
 
-      // Strategy A: count navigation dots (buttons)
-      const buttons = doc.querySelectorAll("button");
-      const dotCount = buttons.length;
+      // Strategy A: count navigation dots (buttons with data-nav-dot attribute only)
+      const navDots = doc.querySelectorAll('button[data-nav-dot]');
+      const dotCount = navDots.length;
 
       // Strategy B: count slide wrapper divs via data attributes or class patterns
       const slideWrappers = doc.querySelectorAll(

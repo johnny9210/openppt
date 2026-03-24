@@ -186,10 +186,23 @@ async def semantic_validator(state: PPTState) -> dict:
     slides = slide_spec["ppt_state"]["presentation"]["slides"]
 
     # Verify each slide's content is properly reflected
+    import logging
+    _logger = logging.getLogger(__name__)
+
     passed, failed = await _verify_all_slides(slides, react_code)
 
     total = len(slides)
     passed_count = total - len(failed)
+
+    if passed:
+        _logger.info("[SemanticValidator] PASS - %d/%d slides", passed_count, total)
+    else:
+        _logger.error("[SemanticValidator] FAIL - %d/%d passed", passed_count, total)
+        for fs in failed:
+            _logger.error("[SemanticValidator]   FAILED %s (%s): %s",
+                          fs["slide_id"], fs["slide_type"], fs["summary"])
+            for issue in fs.get("issues", []):
+                _logger.error("[SemanticValidator]     - %s", issue[:200])
 
     result = {
         "layer": "semantic",

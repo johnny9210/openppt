@@ -72,6 +72,13 @@ async def runtime_validator(state: PPTState) -> dict:
             "revision_count": state.get("revision_count", 0) + 1,
         }
 
+    if result["valid"]:
+        logger.info("[RuntimeValidator] PASS")
+    else:
+        for err in result.get("errors", []):
+            logger.error("[RuntimeValidator] FAIL: type=%s message=%s",
+                         err.get("type", "?"), err.get("message", "?")[:300])
+
     update: dict = {
         "validation_result": {
             "layer": "runtime",

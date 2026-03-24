@@ -10,8 +10,12 @@ from core.state import PPTState
 
 TEMPLATE_HEADER = '''import {{ useState, useEffect }} from "react";
 import {{
-  BarChart, Bar, Cell, LineChart, Line, PieChart, Pie,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  BarChart, Bar, Cell, LineChart, Line, AreaChart, Area,
+  PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  RadialBarChart, RadialBar, ScatterChart, Scatter, ComposedChart,
+  FunnelChart, Funnel, Treemap,
+  XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  ReferenceLine, ReferenceArea, ReferenceDot, Brush, LabelList, Label, Text
 }} from "recharts";
 
 // ── Design System Theme ──────────────────────────────
@@ -100,7 +104,7 @@ export default function Presentation({ spec }) {
         </span>
         <div style={{ display: "flex", gap: 6 }}>
           {slides.map((_, i) => (
-            <button key={i} onClick={() => goTo(i)} style={{
+            <button key={i} data-nav-dot="true" onClick={() => goTo(i)} style={{
               width: i === current ? 24 : 10, height: 10, borderRadius: 5,
               border: "none", transition: "all 0.2s",
               background: i === current ? THEME.accent : "rgba(255,255,255,0.2)",

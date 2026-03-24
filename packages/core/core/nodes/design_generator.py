@@ -1,6 +1,8 @@
 """
 Phase 2-B: Design Generator
 Generates PPT slide design images using Nano Banana (Gemini) via Send API.
+
+Slide-type-specific prompts for optimal design output.
 """
 
 import logging
@@ -10,44 +12,239 @@ from core.services.nano_banana import generate_slide_image
 
 logger = logging.getLogger(__name__)
 
-DESIGN_PROMPT_TEMPLATE = """Create a premium, professional presentation slide design.
+
+# ── Type-specific prompt templates ──────────────────────────
+
+COVER_PROMPT = """Create a professional presentation COVER slide image.
+
+## Layout
+- LEFT SIDE (60%): Title area
+  - Main title: Large bold text "{topic}"
+  - Subtitle below the title (smaller, lighter weight)
+  - Presenter info at bottom-left: name, date, organization (small, gray text)
+- RIGHT SIDE (40%): Visual illustration
+  - A relevant diagram, icon composition, or illustration related to the topic
+  - Icons connected with arrows/lines showing a workflow or concept map
+  - Use colorful flat-style icons (cloud, database, email, document, rocket, gear, etc.)
+
+## Design Style
+- Background: Clean light gray/white (#F5F7FA or similar) with subtle geometric network pattern (thin lines + small dots)
+- Small decorative gear/cog icons in top-left corner area (subtle, light gray)
+- A circular badge/emblem in top-right area with a relevant icon inside
+- Typography: Clean sans-serif (like Pretendard, Noto Sans KR), bold for title
+- Color palette: Mostly grayscale background, with {primary_color} and {accent_color} for accent elements (arrows, highlights)
+- Icons should be colorful but harmonious
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Corporate, clean, professional look (NOT dark mode, NOT glassmorphism)
+- Korean text must be rendered clearly with bold sans-serif font
+- The overall feel should be modern, trustworthy, and business-appropriate
+- Make the right-side illustration visually engaging and relevant to the topic
+
+Generate the cover slide design image now."""
+
+
+TOC_PROMPT = """Create a professional TABLE OF CONTENTS slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
+- Items arranged in a ZIGZAG / STAGGERED layout:
+  - Odd items (1, 3, 5): card on the LEFT side
+  - Even items (2, 4): card on the RIGHT side
+  - Numbered circles (1, 2, 3, 4, 5) running down the CENTER as a vertical timeline spine
+- Each item card contains:
+  - A relevant colorful flat icon on the left inside the card (gear, rocket, document, API, trophy, etc.)
+  - Bold title text next to the icon
+  - Smaller gray description text below the title
+- Cards have rounded corners, light gray background (#F0F2F5), thin subtle border
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
+- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
+- Decorative circular badge in top-right corner with a relevant icon (like a list/menu icon or workflow icon)
+- Number circles: colored with {primary_color} or {accent_color}, white number text inside
+  - Alternate colors between items for visual rhythm (e.g., blue for 1,3,5 and orange/red for 2,4)
+- Typography: Clean sans-serif (Pretendard/Noto Sans KR style), bold for card titles
+- Cards: Rounded rectangle, light fill, subtle shadow
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Clean, professional, corporate presentation look
+- NOT dark mode - use light background
+- Korean text must be clearly rendered with bold sans-serif font
+- The zigzag layout with center number spine is the KEY visual element
+- Make it look organized and easy to follow
+
+Generate the table of contents slide design image now."""
+
+
+KEY_POINTS_PROMPT = """Create a professional KEY POINTS slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
+- 2x2 GRID of cards below the title, evenly spaced with generous gaps
+- Each card contains:
+  - LEFT: A large circular icon badge (60-70px diameter) with a colorful background
+    - Use warm colors like coral/orange (#E8734A) or cool colors like blue (#6BA3D6) for circle backgrounds
+    - Alternate colors between cards for visual variety
+    - Flat-style white icon inside (cloud, envelope, rocket, API, database, gear, etc.)
+  - RIGHT of the icon: Bold title text + smaller gray description text below (2 lines max)
+- Cards have rounded corners, very light gray fill (#F0F2F5), thin subtle border
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
+- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
+- Decorative circular badge in top-right corner with a relevant icon
+- Typography: Clean sans-serif (Pretendard/Noto Sans KR style)
+  - Card titles: Bold, dark (#333333), ~18-20px
+  - Card descriptions: Regular weight, gray (#666666), ~14px
+- Cards should feel like uniform, balanced tiles
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Clean, professional, corporate look - NOT dark mode
+- Korean text must be clearly rendered with bold sans-serif font
+- The 2x2 grid with large circular icons is the KEY visual element
+- Each card should be the same size and aligned symmetrically
+
+Generate the key points slide design image now."""
+
+
+DATA_VIZ_PROMPT = """Create a professional DATA VISUALIZATION slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
+- LEFT SIDE (50-60%): Chart area
+  - A decorative icon badge in top-left (e.g., bar chart icon inside a gray circle)
+  - Section subtitle (e.g., "주요 성과 데이터") in bold
+  - Large DONUT/PIE CHART centered, with percentage labels around it
+    - Each segment has a % value label positioned outside the chart
+    - Short description text next to each % label (e.g., "자동화 비율 50%", "처리 시간 단축 13%")
+  - Key stat callouts above the chart (e.g., "자동화 성공률 98%", "업무 시간 35% 단축")
+  - Small note text at the bottom of the chart area
+- Chart colors: Use warm/cool palette - orange (#E8944A), blue (#4A7AB5), dark blue (#2C4A6E), light blue (#6BA3D6), gray
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
+- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
+- Decorative circular badge in top-right corner
+- Typography: Clean sans-serif, bold for titles and percentages
+- Chart: Clean donut chart with generous inner radius, no 3D effects
+- Layout direction: {design_direction}
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Clean, professional, corporate look - NOT dark mode
+- Korean text must be clearly rendered with bold sans-serif font
+- Data labels must be easy to read at a glance
+- The donut chart with surrounding stat callouts is the KEY visual element
+
+Generate the data visualization slide design image now."""
+
+
+ACTION_PLAN_PROMPT = """Create a professional ACTION PLAN / TIMELINE slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
+- A decorative icon at the top of the timeline (e.g., rocket icon)
+- VERTICAL TIMELINE flowing top to bottom:
+  - A thin vertical line running down the center-left area
+  - Numbered circles (1, 2, 3...) on the line as milestone markers
+    - Use {primary_color} or {accent_color} for circle backgrounds, white number text
+  - Each step has a CARD to the right of the numbered circle:
+    - Card has rounded corners, light gray fill (#F0F2F5), thin border
+    - Bold title text (e.g., "1단계: 기초 학습 및 환경 설정")
+    - Bullet points below the title with key tasks (• item1, • item2)
+  - Cards are stacked vertically with clear spacing between them
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
+- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
+- Decorative circular badge in top-right corner
+- Typography: Clean sans-serif (Pretendard/Noto Sans KR style)
+  - Step titles: Bold, dark (#333333)
+  - Bullet items: Regular, gray (#555555)
+- Timeline line: Thin gray (#CCCCCC) vertical line
+- Number circles: ~36px diameter, colored background
+- Layout direction: {design_direction}
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Clean, professional, corporate look - NOT dark mode
+- Korean text must be clearly rendered with bold sans-serif font
+- The vertical timeline with numbered circles and side cards is the KEY visual element
+- Steps should flow naturally from top to bottom
+
+Generate the action plan slide design image now."""
+
+
+GENERIC_PROMPT = """Create a professional presentation slide design.
 
 ## Slide Specifications
 - Type: {slide_type}
 - Topic: {topic}
 - Layout Direction: {design_direction}
 
-## Design System
-- Style: Modern Dark Glassmorphism
-- Background: Deep dark (#050810 or similar very dark blue-black)
-- Cards: Frosted glass effect (semi-transparent white, subtle borders)
+## Design Style
+- Background: Clean light gray/white (#F5F7FA) with subtle geometric network pattern
+- Cards/sections: White background with thin borders, slight shadows
 - Typography: Clean sans-serif, clear hierarchy
   - Main title: Large (42-52px equivalent), bold
   - Subtitles: Medium (20-24px equivalent)
-  - Body: Small (14-15px equivalent), slightly transparent
+  - Body: Small (14-15px equivalent), gray
 - Colors:
   - Primary: {primary_color}
   - Accent: {accent_color}
-  - Text: Light ({text_color})
-- Decorations: Accent bars, icon badges with emoji, subtle gradients
+  - Text: Dark gray (#333333)
+- Decorations: Flat-style icons, subtle connecting lines
 
 ## Content to Include
 {content_hints}
 
 ## Requirements
-- Aspect ratio: 16:9 (widescreen presentation)
-- Professional business presentation quality
-- All text should be clearly readable
-- Use visual hierarchy to guide the eye
-- Include decorative elements appropriate for the slide type
-- Make it visually stunning and modern
+- Aspect ratio: 16:9 widescreen
+- Professional, clean, corporate look
+- Korean text clearly rendered with bold sans-serif
+- Visual hierarchy to guide the eye
 
 Generate the slide design image now."""
 
 
+# ── Template selection ──────────────────────────
+
+TYPE_PROMPT_MAP = {
+    "cover": COVER_PROMPT,
+    "table_of_contents": TOC_PROMPT,
+    "key_points": KEY_POINTS_PROMPT,
+    "data_visualization": DATA_VIZ_PROMPT,
+    "action_plan": ACTION_PLAN_PROMPT,
+    "risk_analysis": KEY_POINTS_PROMPT,  # reuse key_points layout
+}
+
+
 def _build_design_prompt(slide: dict, brief: dict) -> str:
-    """Build Nano Banana prompt for slide design generation."""
+    """Build Nano Banana prompt for slide design generation.
+
+    Selects a type-specific template for better design output.
+    """
     style = brief.get("style", {})
+    slide_type = slide["type"]
 
     key_points = slide.get("key_points", [])
     content_hints = "\n".join(f"- {pt}" for pt in key_points) if key_points else "General content"
@@ -56,15 +253,22 @@ def _build_design_prompt(slide: dict, brief: dict) -> str:
     if data:
         content_hints += f"\n- Data: {data}"
 
-    return DESIGN_PROMPT_TEMPLATE.format(
-        slide_type=slide["type"],
-        topic=slide["topic"],
-        design_direction=slide.get("design_direction", "Professional layout"),
-        primary_color=style.get("primary_color", "#6366F1"),
-        accent_color=style.get("accent_color", "#818CF8"),
-        text_color=style.get("text_color", "#E2E8F0"),
-        content_hints=content_hints,
-    )
+    template = TYPE_PROMPT_MAP.get(slide_type, GENERIC_PROMPT)
+
+    format_kwargs = {
+        "topic": slide["topic"],
+        "design_direction": slide.get("design_direction", "Professional layout"),
+        "primary_color": style.get("primary_color", "#6366F1"),
+        "accent_color": style.get("accent_color", "#818CF8"),
+        "text_color": style.get("text_color", "#333333"),
+        "content_hints": content_hints,
+    }
+
+    # GENERIC_PROMPT uses slide_type, others don't
+    if slide_type not in TYPE_PROMPT_MAP:
+        format_kwargs["slide_type"] = slide_type
+
+    return template.format(**format_kwargs)
 
 
 async def design_generator(state: DesignGeneratorState) -> dict:
