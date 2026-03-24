@@ -14,6 +14,7 @@ export default function ChatInput() {
     setIsGenerating,
     setSessionId,
     setReactCode,
+    setSlideCode,
     setSlideSpec,
     setValidationResult,
     addProgressStep,
@@ -58,10 +59,18 @@ export default function ChatInput() {
               receivedSpec = true;
             }
             break;
+          case "slide":
+            setSlideCode({
+              slide_id: data.slide_id as string,
+              type: data.type as string,
+              code: data.code as string,
+            });
+            setStatus(`슬라이드 수신: ${data.slide_id}`);
+            break;
           case "code":
             setReactCode(data.react_code as string);
             receivedCode = true;
-            setStatus(`코드 수신 완료 (${(data.react_code as string)?.length || 0} chars)`);
+            setStatus(`코드 조립 완료 (${(data.react_code as string)?.length || 0} chars)`);
             break;
           case "validation":
             setValidationResult(data as { layer: string; status: string });

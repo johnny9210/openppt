@@ -9,7 +9,9 @@ import { useStore } from "@/lib/store";
 
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
-  const { reactCode, slideSpec, isGenerating, progressSteps, validationResult } = useStore();
+  const { reactCode, slideCodes, slideSpec, isGenerating, progressSteps, validationResult } = useStore();
+
+  const slideCount = Object.keys(slideCodes).length;
 
   return (
     <div className="flex flex-col h-screen">
@@ -17,6 +19,11 @@ export default function EditorPage() {
       <header className="flex items-center justify-between px-6 py-3 border-b border-gray-800">
         <h1 className="text-lg font-semibold text-gray-200">PPT Code Generator</h1>
         <div className="flex items-center gap-4">
+          {slideCount > 0 && (
+            <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-400">
+              {slideCount}개 슬라이드
+            </span>
+          )}
           {validationResult?.status && (
             <span
               className={`text-xs px-2 py-1 rounded ${
@@ -30,11 +37,6 @@ export default function EditorPage() {
           )}
         </div>
       </header>
-
-      {/* Debug: verify Zustand state in EditorPage */}
-      <div className="px-6 py-1 bg-yellow-900 text-yellow-200 text-xs font-mono">
-        [EditorPage] reactCode.length={reactCode?.length ?? "null"} | slideSpec={slideSpec ? "있음" : "없음"} | isGenerating={String(isGenerating)}
-      </div>
 
       {/* Progress */}
       {isGenerating && <ProgressBar steps={progressSteps} />}
@@ -80,7 +82,7 @@ export default function EditorPage() {
             {activeTab === "preview" ? (
               <SlidePreview code={reactCode} spec={slideSpec} />
             ) : (
-              <CodeViewer code={reactCode} />
+              <CodeViewer code={reactCode} slideCodes={slideCodes} />
             )}
           </div>
         </div>

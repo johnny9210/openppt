@@ -88,6 +88,12 @@ async def generate_ppt(request: GenerateRequest):
                 for node_name, update in chunk.items():
                     if not update or not isinstance(update, dict):
                         continue
+                    if "generated_slides" in update and update["generated_slides"]:
+                        for slide_data in update["generated_slides"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(slide_data, ensure_ascii=False),
+                                event="slide",
+                            )
                     if "react_code" in update and update["react_code"]:
                         yield ServerSentEvent(
                             raw_data=json.dumps({

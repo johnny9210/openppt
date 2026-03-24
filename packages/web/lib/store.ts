@@ -10,6 +10,12 @@ interface ProgressStep {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SlideSpec = Record<string, any>;
 
+interface SlideCode {
+  slide_id: string;
+  type: string;
+  code: string;
+}
+
 interface AppState {
   // Session
   sessionId: string | null;
@@ -17,6 +23,7 @@ interface AppState {
 
   // Pipeline state
   reactCode: string;
+  slideCodes: Record<string, SlideCode>;
   slideSpec: SlideSpec | null;
   validationResult: { layer?: string; status?: string } | null;
   revisionCount: number;
@@ -26,6 +33,7 @@ interface AppState {
   setSessionId: (id: string) => void;
   setIsGenerating: (v: boolean) => void;
   setReactCode: (code: string) => void;
+  setSlideCode: (slide: SlideCode) => void;
   setSlideSpec: (spec: SlideSpec) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
@@ -37,6 +45,7 @@ export const useStore = create<AppState>()((set) => ({
   sessionId: null,
   isGenerating: false,
   reactCode: "",
+  slideCodes: {},
   slideSpec: null,
   validationResult: null,
   revisionCount: 0,
@@ -45,6 +54,10 @@ export const useStore = create<AppState>()((set) => ({
   setSessionId: (id) => set({ sessionId: id }),
   setIsGenerating: (v) => set({ isGenerating: v }),
   setReactCode: (code) => set({ reactCode: code }),
+  setSlideCode: (slide) =>
+    set((state) => ({
+      slideCodes: { ...state.slideCodes, [slide.slide_id]: slide },
+    })),
   setSlideSpec: (spec) => set({ slideSpec: spec }),
   setValidationResult: (result) => set({ validationResult: result }),
   addProgressStep: (step) =>
@@ -55,6 +68,7 @@ export const useStore = create<AppState>()((set) => ({
       sessionId: null,
       isGenerating: false,
       reactCode: "",
+      slideCodes: {},
       slideSpec: null,
       validationResult: null,
       revisionCount: 0,
