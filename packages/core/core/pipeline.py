@@ -1,74 +1,91 @@
 """
 LangGraph Pipeline - PPT Code Generation
-4 Phases: Preprocessing → Model Inference → Multi-layer Validation
+Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
 
 Uses LangGraph v1.0.10 API:
 - StateGraph with conditional edges
-- Send API for parallel slide generation (via Command(goto=list[Send]))
-- interrupt() for human-in-the-loop (inside node functions only)
+- Send API for parallel text + design generation
+- interrupt() for human-in-the-loop
 - get_stream_writer for SSE progress
 """
 
 from typing import Literal
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.types import interrupt, Command
+from langgraph.types import Send, Command, interrupt
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.config import get_stream_writer
 
 from core.state import PPTState
 from core.config import MAX_REVISIONS
 
-# Import all nodes
-from core.nodes.mode_router import mode_router
-from core.nodes.intent_parser import intent_parser
-from core.nodes.schema_abstractor import schema_abstractor
-from core.nodes.design_system_loader import design_system_loader
-from core.nodes.json_validator import json_validator
-from core.nodes.slide_dispatcher import slide_dispatcher
-from core.nodes.slide_generator import slide_generator
+# Import nodes
+from core.nodes.scoping import scoping
+from core.nodes.text_generator import text_generator
+from core.nodes.design_generator import design_generator
+from core.nodes.code_synthesizer import code_synthesizer
 from core.nodes.code_assembly import code_assembly
 from core.nodes.ast_validator import ast_validator
 from core.nodes.runtime_validator import runtime_validator
 from core.nodes.semantic_validator import semantic_validator
 
 
-# --- Routing functions (must return string node names) ---
+# --- Parallel dispatcher (returns Command with Send list) ---
 
-def route_json_validation(state: PPTState) -> Literal["design_system_loader", "intent_parser"]:
-    """Route after JSON validation: pass → continue, fail → retry intent_parser."""
-    result = state.get("validation_result", {})
-    if result.get("status") == "pass":
-        return "design_system_loader"
-    return "intent_parser"
+def parallel_dispatcher(state: PPTState) -> Command:
+    """Fan-out: dispatch parallel text + design generation for each slide."""
+    brief = state["research_brief"]
+    slide_plan = brief.get("slide_plan", [])
 
+    sends = []
+    for slide in slide_plan:
+        payload = {
+            "slide_plan": slide,
+            "research_brief": brief,
+        }
+        sends.append(Send("text_generator", payload))
+        sends.append(Send("design_generator", payload))
+
+    return Command(goto=sends)
+
+
+# --- Routing functions ---
 
 def route_ast_result(state: PPTState) -> Literal["runtime_validator", "code_assembly"]:
-    """AST fail → Code Assembly re-execution (max MAX_REVISIONS retries)."""
+    """AST fail -> re-run code_assembly."""
     result = state.get("validation_result", {})
     revision_count = state.get("revision_count", 0)
-    if result.get("layer") == "ast" and result.get("status") == "fail" and revision_count < MAX_REVISIONS:
+    if (
+        result.get("layer") == "ast"
+        and result.get("status") == "fail"
+        and revision_count < MAX_REVISIONS
+    ):
         return "code_assembly"
     return "runtime_validator"
 
 
-def route_runtime_result(state: PPTState) -> Literal["semantic_validator", "slide_dispatcher"]:
-    """Runtime fail → re-dispatch slide generation (max MAX_REVISIONS retries)."""
+def route_runtime_result(
+    state: PPTState,
+) -> Literal["semantic_validator", "code_synthesizer"]:
+    """Runtime fail -> re-synthesize code."""
     result = state.get("validation_result", {})
     revision_count = state.get("revision_count", 0)
-    if result.get("layer") == "runtime" and result.get("status") == "fail" and revision_count < MAX_REVISIONS:
-        return "slide_dispatcher"
+    if (
+        result.get("layer") == "runtime"
+        and result.get("status") == "fail"
+        and revision_count < MAX_REVISIONS
+    ):
+        return "code_synthesizer"
     return "semantic_validator"
 
 
-# --- Semantic decision node (uses interrupt + Command, must be a node) ---
+# --- Semantic decision node ---
 
 def semantic_decision(state: PPTState) -> Command:
-    """
-    Post-semantic-validation decision node.
-    - pass → END
-    - fail + revision_count < MAX → auto regeneration (goto slide_dispatcher)
-    - fail + revision_count >= MAX → human-in-the-loop via interrupt()
+    """Post-semantic-validation decision.
+    - pass -> END
+    - fail + revision < MAX -> re-synthesize
+    - fail + revision >= MAX -> human-in-the-loop
     """
     result = state.get("validation_result", {})
 
@@ -78,7 +95,6 @@ def semantic_decision(state: PPTState) -> Command:
     revision_count = state.get("revision_count", 0)
 
     if revision_count >= MAX_REVISIONS:
-        # Human-in-the-loop: interrupt() is called inside a node
         decision = interrupt({
             "message": f"{revision_count}회 검증 실패. 계속 재생성하시겠습니까?",
             "validation_result": result,
@@ -88,99 +104,114 @@ def semantic_decision(state: PPTState) -> Command:
         if decision == "approve":
             return Command(goto=END)
         elif decision == "abort":
-            return Command(goto=END, update={"validation_result": {
-                "layer": "semantic",
-                "status": "aborted",
-                "reason": "User aborted after max revisions",
-            }})
-        # retry: fall through to regeneration
+            return Command(
+                goto=END,
+                update={
+                    "validation_result": {
+                        "layer": "semantic",
+                        "status": "aborted",
+                        "reason": "User aborted after max revisions",
+                    }
+                },
+            )
 
-    # Auto regeneration: go back to slide_dispatcher
-    return Command(goto="slide_dispatcher")
+    return Command(goto="code_synthesizer")
 
 
 # --- Progress wrapper nodes ---
 
-async def progress_mode_router(state: PPTState) -> dict:
+async def progress_scoping(state: PPTState) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 0, "step": "mode_router", "message": "모드 분석 중..."})
-    result = await mode_router(state)
-    writer({"phase": 0, "step": "mode_router", "message": f"모드: {result['mode']}", "done": True})
+    writer({"phase": 1, "step": "scoping", "message": "요청 분석 중... (dee_research)"})
+    result = await scoping(state)
+    slide_count = len(result.get("research_brief", {}).get("slide_plan", []))
+    writer({
+        "phase": 1,
+        "step": "scoping",
+        "message": f"분석 완료: {slide_count}장 슬라이드 기획",
+        "done": True,
+    })
     return result
 
 
-async def progress_intent_parser(state: PPTState) -> dict:
+def progress_parallel_dispatcher(state: PPTState) -> Command:
     writer = get_stream_writer()
-    writer({"phase": 1, "step": "intent_parser", "message": "의도 추출 중..."})
-    result = await intent_parser(state)
-    writer({"phase": 1, "step": "intent_parser", "message": "의도 추출 완료", "done": True})
+    slide_count = len(state.get("research_brief", {}).get("slide_plan", []))
+    writer({
+        "phase": 2,
+        "step": "parallel_dispatcher",
+        "message": f"텍스트 + 디자인 병렬 생성 시작 ({slide_count}장 x 2)...",
+    })
+    result = parallel_dispatcher(state)
+    writer({
+        "phase": 2,
+        "step": "parallel_dispatcher",
+        "message": "병렬 분배 완료",
+        "done": True,
+    })
     return result
 
 
-async def progress_schema_abstractor(state: PPTState) -> dict:
+async def progress_code_synthesizer(state: PPTState) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 1, "step": "schema_abstractor", "message": "PPTState JSON 생성 중..."})
-    result = await schema_abstractor(state)
-    writer({"phase": 1, "step": "schema_abstractor", "message": "스키마 생성 완료", "done": True})
-    return result
-
-
-def progress_design_system_loader(state: PPTState) -> dict:
-    writer = get_stream_writer()
-    writer({"phase": 1, "step": "design_system_loader", "message": "Reference Component 로드 중..."})
-    result = design_system_loader(state)
-    writer({"phase": 1, "step": "design_system_loader", "message": "디자인 시스템 로드 완료", "done": True})
-    return result
-
-
-def progress_json_validator(state: PPTState) -> dict:
-    writer = get_stream_writer()
-    writer({"phase": 1, "step": "json_validator", "message": "JSON 스키마 검증 중..."})
-    result = json_validator(state)
-    writer({"phase": 1, "step": "json_validator", "message": "JSON 검증 완료", "done": True})
-    return result
-
-
-def progress_slide_dispatcher(state: PPTState) -> Command:
-    writer = get_stream_writer()
-    writer({"phase": 2, "step": "slide_dispatcher", "message": "슬라이드 분배 중..."})
-    result = slide_dispatcher(state)
-    writer({"phase": 2, "step": "slide_dispatcher", "message": "슬라이드 분배 완료", "done": True})
+    writer({
+        "phase": 3,
+        "step": "code_synthesizer",
+        "message": "디자인 이미지 + 텍스트 -> React 코드 합성 중...",
+    })
+    result = await code_synthesizer(state)
+    count = len(result.get("generated_slides", []))
+    writer({
+        "phase": 3,
+        "step": "code_synthesizer",
+        "message": f"코드 합성 완료: {count}장",
+        "done": True,
+    })
     return result
 
 
 def progress_code_assembly(state: PPTState) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 2, "step": "code_assembly", "message": "코드 조립 중..."})
+    writer({"phase": 3, "step": "code_assembly", "message": "코드 조립 중..."})
     result = code_assembly(state)
-    writer({"phase": 2, "step": "code_assembly", "message": "코드 조립 완료", "done": True})
+    writer({"phase": 3, "step": "code_assembly", "message": "코드 조립 완료", "done": True})
     return result
 
 
 async def progress_ast_validator(state: PPTState) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 3, "step": "ast_validator", "message": "AST 검증 중..."})
+    writer({"phase": 4, "step": "ast_validator", "message": "AST 검증 중..."})
     result = await ast_validator(state)
     status = result["validation_result"]["status"]
-    writer({"phase": 3, "step": "ast_validator", "message": f"AST 검증: {status}", "done": True})
+    writer({"phase": 4, "step": "ast_validator", "message": f"AST 검증: {status}", "done": True})
     return result
 
 
 async def progress_runtime_validator(state: PPTState) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 3, "step": "runtime_validator", "message": "런타임 검증 중..."})
+    writer({"phase": 4, "step": "runtime_validator", "message": "런타임 검증 중..."})
     result = await runtime_validator(state)
     status = result["validation_result"]["status"]
-    writer({"phase": 3, "step": "runtime_validator", "message": f"런타임 검증: {status}", "done": True})
+    writer({
+        "phase": 4,
+        "step": "runtime_validator",
+        "message": f"런타임 검증: {status}",
+        "done": True,
+    })
     return result
 
 
 async def progress_semantic_validator(state: PPTState) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 3, "step": "semantic_validator", "message": "시맨틱 검증 중..."})
+    writer({"phase": 4, "step": "semantic_validator", "message": "시맨틱 검증 중..."})
     result = await semantic_validator(state)
     status = result["validation_result"]["status"]
-    writer({"phase": 3, "step": "semantic_validator", "message": f"시맨틱 검증: {status}", "done": True})
+    writer({
+        "phase": 4,
+        "step": "semantic_validator",
+        "message": f"시맨틱 검증: {status}",
+        "done": True,
+    })
     return result
 
 
@@ -190,54 +221,44 @@ def build_pipeline():
     """Build the LangGraph StateGraph pipeline."""
     graph = StateGraph(PPTState)
 
-    # Phase 0: Mode Router
-    graph.add_node("mode_router", progress_mode_router)
+    # Phase 1: Scoping
+    graph.add_node("scoping", progress_scoping)
 
-    # Phase 1: Preprocessing
-    graph.add_node("intent_parser", progress_intent_parser)
-    graph.add_node("schema_abstractor", progress_schema_abstractor)
-    graph.add_node("design_system_loader", progress_design_system_loader)
-    graph.add_node("json_validator", progress_json_validator)
+    # Phase 2: Parallel Dispatch
+    graph.add_node("parallel_dispatcher", progress_parallel_dispatcher)
+    graph.add_node("text_generator", text_generator)
+    graph.add_node("design_generator", design_generator)
 
-    # Phase 2: Model Inference
-    # slide_dispatcher returns Command(goto=list[Send]) for fan-out
-    graph.add_node("slide_dispatcher", progress_slide_dispatcher)
-    graph.add_node("slide_generator", slide_generator)
+    # Phase 3: Synthesis + Assembly
+    graph.add_node("code_synthesizer", progress_code_synthesizer)
     graph.add_node("code_assembly", progress_code_assembly)
 
-    # Phase 3: Multi-layer Validation
+    # Phase 4: Validation
     graph.add_node("ast_validator", progress_ast_validator)
     graph.add_node("runtime_validator", progress_runtime_validator)
     graph.add_node("semantic_validator", progress_semantic_validator)
-    # semantic_decision handles interrupt() + Command routing
     graph.add_node("semantic_decision", semantic_decision)
 
     # --- Edges ---
 
-    # Phase 0 → Phase 1
-    graph.add_edge(START, "mode_router")
-    graph.add_edge("mode_router", "intent_parser")
-    graph.add_edge("intent_parser", "schema_abstractor")
-    graph.add_edge("schema_abstractor", "json_validator")
+    # Phase 1: Scoping
+    graph.add_edge(START, "scoping")
+    graph.add_edge("scoping", "parallel_dispatcher")
+    # parallel_dispatcher returns Command(goto=list[Send])
 
-    # JSON validation routing
-    graph.add_conditional_edges("json_validator", route_json_validation)
+    # Phase 2: Fan-in after parallel text + design generation
+    graph.add_edge("text_generator", "code_synthesizer")
+    graph.add_edge("design_generator", "code_synthesizer")
 
-    # Phase 1 → Phase 2
-    graph.add_edge("design_system_loader", "slide_dispatcher")
-    # slide_dispatcher returns Command(goto=list[Send]) — no outgoing edge needed
-
-    # Fan-in: all slide_generator instances must complete before code_assembly
-    graph.add_edge("slide_generator", "code_assembly")
-
-    # Phase 2 → Phase 3: Validation chain
+    # Phase 3: Synthesis -> Assembly -> Validation
+    graph.add_edge("code_synthesizer", "code_assembly")
     graph.add_edge("code_assembly", "ast_validator")
+
+    # Phase 4: Validation chain
     graph.add_conditional_edges("ast_validator", route_ast_result)
     graph.add_conditional_edges("runtime_validator", route_runtime_result)
-
-    # Semantic validator → decision node (handles Command routing)
     graph.add_edge("semantic_validator", "semantic_decision")
-    # semantic_decision returns Command(goto=END|"slide_dispatcher") — no outgoing edge needed
+    # semantic_decision returns Command(goto=END|"code_synthesizer")
 
     # Compile with checkpointer (required for interrupt)
     checkpointer = InMemorySaver()

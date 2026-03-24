@@ -27,6 +27,14 @@ AZURE_OPENAI_API_KEY = os.getenv("APIM_AOAI_API_KEY")
 GPT_DEPLOYMENT = os.getenv("GPT_DEPLOYMENT", "gpt-4o")
 GPT_API_VERSION = os.getenv("GPT_API_VERSION", "2025-01-01-preview")
 
+# Google AI Studio (Nano Banana - Gemini Image Generation)
+GOOGLE_AI_STUDIO_KEY = os.getenv(
+    "GOOGLE_AI_STUDIO_KEY", ""
+)
+GEMINI_IMAGE_MODEL = os.getenv(
+    "GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"
+)
+
 # Pipeline Settings
 DEFAULT_LLM = os.getenv("DEFAULT_LLM", "claude")
 MAX_REVISIONS = int(os.getenv("MAX_REVISIONS", "3"))

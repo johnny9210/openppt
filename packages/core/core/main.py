@@ -2,8 +2,7 @@
 FastAPI Application - PPT Code Generation API
 SSE streaming for real-time progress updates.
 
-FastAPI 0.135+ SSE pattern: endpoint with response_class=EventSourceResponse
-must be an async generator that yields ServerSentEvent directly.
+Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
 """
 
 import json
@@ -17,7 +16,7 @@ from langgraph.types import Command
 
 from core.pipeline import get_pipeline
 
-app = FastAPI(title="PPT Code Generation API", version="0.1.0")
+app = FastAPI(title="PPT Code Generation API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,12 +32,6 @@ app.add_middleware(
 class GenerateRequest(BaseModel):
     user_request: str
     model_type: str | None = None  # "claude" | "gpt"
-
-
-class EditRequest(BaseModel):
-    session_id: str
-    user_request: str
-    target_slide_id: str
 
 
 class HumanReviewRequest(BaseModel):
@@ -57,12 +50,12 @@ async def generate_ppt(request: GenerateRequest):
 
     initial_state = {
         "user_request": request.user_request,
-        "mode": "create",
-        "target_slide_id": None,
-        "slide_spec": {},
-        "reference_components": {},
+        "research_brief": {},
+        "slide_contents": [],
+        "slide_designs": [],
         "generated_slides": [],
         "react_code": "",
+        "slide_spec": {},
         "validation_result": {},
         "revision_count": 0,
         "error_log": [],
@@ -88,101 +81,96 @@ async def generate_ppt(request: GenerateRequest):
                 for node_name, update in chunk.items():
                     if not update or not isinstance(update, dict):
                         continue
+
+                    # Phase 1: Scoping result
+                    if "research_brief" in update and update["research_brief"]:
+                        yield ServerSentEvent(
+                            raw_data=json.dumps(
+                                update["research_brief"], ensure_ascii=False
+                            ),
+                            event="scoping",
+                        )
+
+                    # Phase 2: Text content
+                    if "slide_contents" in update and update["slide_contents"]:
+                        for content in update["slide_contents"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(content, ensure_ascii=False),
+                                event="text",
+                            )
+
+                    # Phase 2: Design images (don't send base64 in SSE)
+                    if "slide_designs" in update and update["slide_designs"]:
+                        for design in update["slide_designs"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(
+                                    {
+                                        "slide_id": design["slide_id"],
+                                        "type": design["type"],
+                                        "has_image": design.get("image_b64")
+                                        is not None,
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                                event="design",
+                            )
+
+                    # Phase 3: Synthesized slide code
                     if "generated_slides" in update and update["generated_slides"]:
                         for slide_data in update["generated_slides"]:
                             yield ServerSentEvent(
-                                raw_data=json.dumps(slide_data, ensure_ascii=False),
+                                raw_data=json.dumps(
+                                    slide_data, ensure_ascii=False
+                                ),
                                 event="slide",
                             )
+
+                    # Phase 3: Assembled code
                     if "react_code" in update and update["react_code"]:
                         yield ServerSentEvent(
-                            raw_data=json.dumps({
-                                "react_code": update["react_code"],
-                            }, ensure_ascii=False),
+                            raw_data=json.dumps(
+                                {"react_code": update["react_code"]},
+                                ensure_ascii=False,
+                            ),
                             event="code",
                         )
+
+                    # Phase 4: Validation
                     if "validation_result" in update:
                         yield ServerSentEvent(
-                            raw_data=json.dumps(update["validation_result"], ensure_ascii=False),
+                            raw_data=json.dumps(
+                                update["validation_result"], ensure_ascii=False
+                            ),
                             event="validation",
-                        )
-                    if "slide_spec" in update and update["slide_spec"]:
-                        yield ServerSentEvent(
-                            raw_data=json.dumps({
-                                "node": node_name,
-                                "slide_spec": update["slide_spec"],
-                            }, ensure_ascii=False),
-                            event="state",
                         )
 
         # Final state
         final_state = pipeline.get_state(config)
         yield ServerSentEvent(
-            raw_data=json.dumps({
-                "status": "completed",
-                "react_code": final_state.values.get("react_code", ""),
-                "slide_spec": final_state.values.get("slide_spec", {}),
-                "validation_result": final_state.values.get("validation_result", {}),
-                "revision_count": final_state.values.get("revision_count", 0),
-            }, ensure_ascii=False),
+            raw_data=json.dumps(
+                {
+                    "status": "completed",
+                    "react_code": final_state.values.get("react_code", ""),
+                    "research_brief": final_state.values.get("research_brief", {}),
+                    "validation_result": final_state.values.get(
+                        "validation_result", {}
+                    ),
+                    "revision_count": final_state.values.get("revision_count", 0),
+                },
+                ensure_ascii=False,
+            ),
             event="complete",
         )
 
     except Exception as e:
         import traceback
+
         tb = traceback.format_exc()
         print(f"Pipeline error:\n{tb}", flush=True)
         yield ServerSentEvent(
             raw_data=json.dumps({"error": str(e), "traceback": tb}),
             event="error",
         )
-
-
-@app.post("/api/edit", response_class=EventSourceResponse)
-async def edit_slide(request: EditRequest):
-    """Edit a specific slide. Resumes existing session."""
-    pipeline = get_pipeline()
-    config = {"configurable": {"thread_id": request.session_id}}
-
-    current_state = pipeline.get_state(config)
-    if not current_state.values:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    yield ServerSentEvent(
-        raw_data=json.dumps({"session_id": request.session_id, "status": "editing"}),
-        event="session",
-    )
-
-    async for mode, chunk in pipeline.astream(
-        {
-            "user_request": request.user_request,
-            "mode": "edit",
-            "target_slide_id": request.target_slide_id,
-        },
-        config,
-        stream_mode=["updates", "custom"],
-    ):
-        if mode == "custom":
-            yield ServerSentEvent(
-                raw_data=json.dumps(chunk, ensure_ascii=False),
-                event="progress",
-            )
-        elif mode == "updates":
-            for node_name, update in chunk.items():
-                if "react_code" in update:
-                    yield ServerSentEvent(
-                        raw_data=json.dumps({"react_code": update["react_code"]}, ensure_ascii=False),
-                        event="code",
-                    )
-
-    final_state = pipeline.get_state(config)
-    yield ServerSentEvent(
-        raw_data=json.dumps({
-            "status": "completed",
-            "react_code": final_state.values.get("react_code", ""),
-        }, ensure_ascii=False),
-        event="complete",
-    )
 
 
 @app.post("/api/human-review")
@@ -215,8 +203,8 @@ async def get_session(session_id: str):
 
     return {
         "session_id": session_id,
-        "mode": state.values.get("mode"),
         "react_code": state.values.get("react_code", ""),
+        "research_brief": state.values.get("research_brief", {}),
         "validation_result": state.values.get("validation_result", {}),
         "revision_count": state.values.get("revision_count", 0),
     }

@@ -359,16 +359,17 @@ TYPE_COMPONENT_MAP = {
 
 def code_assembly(state: PPTState) -> dict:
     """Assemble individual slide codes into a complete React component."""
-    theme = state["slide_spec"]["ppt_state"]["presentation"]["meta"]["theme"]
+    # Read theme from research_brief.style (new architecture)
+    style = state.get("research_brief", {}).get("style", {})
     generated_slides = state["generated_slides"]
 
     # Build theme object with glass design tokens
     theme_obj = json.dumps(
         {
-            "primary": theme["primary_color"],
-            "accent": theme["accent_color"],
-            "background": theme["background"],
-            "text": theme["text_color"],
+            "primary": style.get("primary_color", "#6366F1"),
+            "accent": style.get("accent_color", "#818CF8"),
+            "background": style.get("background", "#050810"),
+            "text": style.get("text_color", "#E2E8F0"),
             "red": "#E53E3E",
             "yellow": "#F6C90E",
             "green": "#38A169",
@@ -443,4 +444,32 @@ def code_assembly(state: PPTState) -> dict:
         TEMPLATE_ROOT,
     ])
 
-    return {"react_code": full_code}
+    # Build backward-compatible slide_spec for validators
+    contents_map = {c["slide_id"]: c for c in state.get("slide_contents", [])}
+    slides_for_spec = []
+    for slide in generated_slides:
+        content = contents_map.get(slide["slide_id"], {}).get("content", {})
+        slides_for_spec.append({
+            "slide_id": slide["slide_id"],
+            "type": slide["type"],
+            "content": content,
+        })
+
+    slide_spec = {
+        "ppt_state": {
+            "presentation": {
+                "meta": {
+                    "title": state.get("research_brief", {}).get("purpose", ""),
+                    "theme": {
+                        "primary_color": style.get("primary_color", "#6366F1"),
+                        "accent_color": style.get("accent_color", "#818CF8"),
+                        "background": style.get("background", "#050810"),
+                        "text_color": style.get("text_color", "#E2E8F0"),
+                    },
+                },
+                "slides": slides_for_spec,
+            }
+        }
+    }
+
+    return {"react_code": full_code, "slide_spec": slide_spec}
