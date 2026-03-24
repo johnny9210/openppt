@@ -129,8 +129,8 @@ export default function SlidePreview({ code, spec, slideCodes }: SlidePreviewPro
       )}
 
       {/* Right: Preview */}
-      <div className="flex-1 flex items-center justify-center bg-gray-950 p-8">
-        <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+      <div className="flex-1 flex items-center justify-center bg-gray-200 p-8">
+        <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-2xl border border-gray-300">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gray-900 text-gray-400 gap-3">
               <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-400 rounded-full animate-spin" />

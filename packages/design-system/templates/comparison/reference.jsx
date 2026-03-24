@@ -1,5 +1,4 @@
-// Reference Component: Comparison Slide
-// Left/Right two-column contrast layout
+// Reference Component: Comparison Slide (Light Theme)
 
 const ComparisonSlide = ({ content }) => {
   const left = content.left || { label: "", items: [] };
@@ -7,32 +6,34 @@ const ComparisonSlide = ({ content }) => {
 
   const Column = ({ data, color, icon }) => (
     <div style={{
-      flex: 1, background: `${color}08`,
-      border: `1px solid ${color}20`,
+      flex: 1, background: THEME.card,
+      border: `1px solid ${THEME.cardBorder}`,
       borderRadius: 16, padding: "28px 24px",
+      boxShadow: THEME.cardShadow,
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
       }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: `${color}20`, display: "flex",
-          alignItems: "center", justifyContent: "center", fontSize: 18,
+          width: 36, height: 36, borderRadius: "50%",
+          background: color, display: "flex",
+          alignItems: "center", justifyContent: "center",
+          fontSize: 16, color: "#fff",
         }}>{icon}</div>
         <h3 style={{
-          color, fontSize: 18, fontWeight: 700, margin: 0,
+          color: THEME.text, fontSize: 18, fontWeight: 700, margin: 0,
         }}>{data.label}</h3>
       </div>
       {data.items.map((item, i) => (
         <div key={i} style={{
           display: "flex", alignItems: "flex-start", gap: 8,
-          marginBottom: 12,
+          marginBottom: 10,
         }}>
           <span style={{ color, fontSize: 14, marginTop: 2 }}>
             {color === THEME.red ? "✕" : "✓"}
           </span>
           <p style={{
-            color: THEME.text, opacity: 0.8, fontSize: 14,
+            color: THEME.textSecondary, fontSize: 14,
             lineHeight: 1.5, margin: 0,
           }}>{item}</p>
         </div>
@@ -46,7 +47,7 @@ const ComparisonSlide = ({ content }) => {
       padding: "48px 60px",
     }}>
       <h2 style={{
-        color: THEME.text, fontSize: 28, fontWeight: 800,
+        color: THEME.text, fontSize: 32, fontWeight: 800,
         margin: "0 0 32px", textAlign: "center",
       }}>
         {content.title}

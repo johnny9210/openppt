@@ -67,21 +67,21 @@ export default function Presentation({ spec }) {
     <button onClick={onClick} style={{
       position: "absolute", top: "50%", transform: "translateY(-50%)",
       [direction === "left" ? "left" : "right"]: 12,
-      width: 36, height: 36, borderRadius: "50%", border: "none",
-      background: "rgba(255,255,255,0.1)", color: "#fff",
-      fontSize: 18, cursor: "pointer", display: "flex",
+      width: 40, height: 40, borderRadius: "50%", border: "1px solid #E2E8F0",
+      background: "rgba(255,255,255,0.9)", color: "#475569",
+      fontSize: 20, cursor: "pointer", display: "flex",
       alignItems: "center", justifyContent: "center",
-      backdropFilter: "blur(4px)", transition: "background 0.2s",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.1)", transition: "all 0.2s",
       zIndex: 10,
     }}
-    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
-    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+    onMouseEnter={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; }}
+    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"; }}
     >{direction === "left" ? "\\u2039" : "\\u203A"}</button>
   );
 
   return (
     <div style={{
-      background: "#050810", width: "100vw", height: "100vh",
+      background: "#E8ECF1", width: "100vw", height: "100vh",
       display: "flex", flexDirection: "column"
     }}>
       <div style={{
@@ -91,15 +91,15 @@ export default function Presentation({ spec }) {
         {current > 0 && arrowBtn("left", goPrev)}
         <div style={{
           width: "100%", maxWidth: 900,
-          aspectRatio: "16/9", borderRadius: 16, overflow: "hidden",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.5)"
+          aspectRatio: "16/9", borderRadius: 8, overflow: "hidden",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: "1px solid #E2E8F0",
         }}>
           <SlideFactory slide={slides[current]} />
         </div>
         {current < total - 1 && arrowBtn("right", goNext)}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, paddingBottom: 16 }}>
-        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+        <span style={{ color: "#94A3B8", fontSize: 12 }}>
           {current + 1} / {total}
         </span>
         <div style={{ display: "flex", gap: 6 }}>
@@ -107,7 +107,7 @@ export default function Presentation({ spec }) {
             <button key={i} data-nav-dot="true" onClick={() => goTo(i)} style={{
               width: i === current ? 24 : 10, height: 10, borderRadius: 5,
               border: "none", transition: "all 0.2s",
-              background: i === current ? THEME.accent : "rgba(255,255,255,0.2)",
+              background: i === current ? THEME.primary : "#CBD5E1",
               cursor: "pointer"
             }} />
           ))}
@@ -424,20 +424,24 @@ def code_assembly(state: PPTState) -> dict:
     style = state.get("research_brief", {}).get("style", {})
     generated_slides = state["generated_slides"]
 
-    # Build theme object with glass design tokens
+    # Build theme object with light design tokens
     theme_obj = json.dumps(
         {
             "primary": style.get("primary_color", "#6366F1"),
             "accent": style.get("accent_color", "#818CF8"),
-            "background": style.get("background", "#050810"),
-            "text": style.get("text_color", "#E2E8F0"),
+            "background": style.get("background", "#F5F7FA"),
+            "text": style.get("text_color", "#1A202C"),
+            "textSecondary": "#64748B",
             "red": "#E53E3E",
-            "yellow": "#F6C90E",
+            "yellow": "#F59E0B",
             "green": "#38A169",
-            "glass": "rgba(255,255,255,0.04)",
-            "glassBorder": "rgba(255,255,255,0.08)",
-            "glassBright": "rgba(255,255,255,0.08)",
-            "glassBorderBright": "rgba(255,255,255,0.15)",
+            "card": "#FFFFFF",
+            "cardBorder": "#E2E8F0",
+            "cardShadow": "0 2px 8px rgba(0,0,0,0.06)",
+            "iconBg1": style.get("primary_color", "#6366F1"),
+            "iconBg2": style.get("accent_color", "#818CF8"),
+            "subtleBg": "rgba(99,102,241,0.06)",
+            "divider": "#E2E8F0",
         },
         indent=2,
     )
@@ -524,8 +528,8 @@ def code_assembly(state: PPTState) -> dict:
                     "theme": {
                         "primary_color": style.get("primary_color", "#6366F1"),
                         "accent_color": style.get("accent_color", "#818CF8"),
-                        "background": style.get("background", "#050810"),
-                        "text_color": style.get("text_color", "#E2E8F0"),
+                        "background": style.get("background", "#F5F7FA"),
+                        "text_color": style.get("text_color", "#1A202C"),
                     },
                 },
                 "slides": slides_for_spec,

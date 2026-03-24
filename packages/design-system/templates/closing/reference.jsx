@@ -1,5 +1,4 @@
-// Reference Component: Closing Slide
-// End slide with resources, CTA, and thank you message
+// Reference Component: Closing Slide (Light Theme)
 
 const ClosingSlide = ({ content }) => {
   const resources = content.resources || [];
@@ -12,7 +11,7 @@ const ClosingSlide = ({ content }) => {
       alignItems: "center", justifyContent: "center",
     }}>
       <h2 style={{
-        color: THEME.text, fontSize: 32, fontWeight: 800,
+        color: THEME.text, fontSize: 36, fontWeight: 800,
         margin: "0 0 16px", textAlign: "center",
       }}>
         {content.title}
@@ -20,7 +19,7 @@ const ClosingSlide = ({ content }) => {
 
       {content.message && (
         <p style={{
-          color: THEME.text, opacity: 0.5, fontSize: 16,
+          color: THEME.textSecondary, fontSize: 16,
           textAlign: "center", margin: "0 0 40px",
           lineHeight: 1.6, maxWidth: 500,
         }}>
@@ -35,8 +34,8 @@ const ClosingSlide = ({ content }) => {
         }}>
           {resources.map((res, i) => (
             <div key={i} style={{
-              background: THEME.glass, border: `1px solid ${THEME.glassBorder}`,
-              borderRadius: 16, padding: "20px 24px",
+              background: THEME.card, border: `1px solid ${THEME.cardBorder}`,
+              borderRadius: 16, padding: "20px 24px", boxShadow: THEME.cardShadow,
               textAlign: "center", minWidth: 120,
             }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>
@@ -50,7 +49,7 @@ const ClosingSlide = ({ content }) => {
               </p>
               {res.description && (
                 <p style={{
-                  color: THEME.text, opacity: 0.4, fontSize: 11,
+                  color: THEME.textSecondary, fontSize: 11,
                   margin: 0,
                 }}>
                   {res.description}

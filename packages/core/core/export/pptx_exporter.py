@@ -369,38 +369,41 @@ def export_pptx(
 
         slide = prs.slides.add_slide(blank_layout)
 
-        # Background image (if available)
         if image_b64:
+            # Design image already contains all text/visuals — use as-is
             try:
                 _add_background_image(slide, image_b64)
             except Exception as e:
-                logger.warning("Failed to add background for %s: %s", slide_id, e)
-
-        # Render text content by type
-        renderer = RENDERERS.get(slide_type)
-        if renderer:
-            try:
-                renderer(slide, content, theme)
-            except Exception as e:
-                logger.warning("Failed to render %s (%s): %s", slide_id, slide_type, e)
+                logger.warning("Failed to add image for %s: %s", slide_id, e)
+                # Fallback to text rendering
+                renderer = RENDERERS.get(slide_type)
+                if renderer:
+                    renderer(slide, content, theme)
+        else:
+            # No design image — render text natively
+            renderer = RENDERERS.get(slide_type)
+            if renderer:
+                try:
+                    renderer(slide, content, theme)
+                except Exception as e:
+                    logger.warning("Failed to render %s (%s): %s", slide_id, slide_type, e)
+                    _add_textbox(
+                        slide, 1.0, 3.0, 11.0, 1.0,
+                        content.get("title", slide_id),
+                        font_size=24,
+                        color=_hex_to_rgb(theme.get("text_color", "#E2E8F0")),
+                        bold=True,
+                        alignment=PP_ALIGN.CENTER,
+                    )
+            else:
                 _add_textbox(
                     slide, 1.0, 3.0, 11.0, 1.0,
-                    f"{slide_type}: {content.get('title', slide_id)}",
+                    content.get("title", slide_id),
                     font_size=24,
                     color=_hex_to_rgb(theme.get("text_color", "#E2E8F0")),
                     bold=True,
                     alignment=PP_ALIGN.CENTER,
                 )
-        else:
-            # Fallback: just show the title
-            _add_textbox(
-                slide, 1.0, 3.0, 11.0, 1.0,
-                content.get("title", slide_id),
-                font_size=24,
-                color=_hex_to_rgb(theme.get("text_color", "#E2E8F0")),
-                bold=True,
-                alignment=PP_ALIGN.CENTER,
-            )
 
     buf = io.BytesIO()
     prs.save(buf)

@@ -1,57 +1,62 @@
-// Reference Component: Data Visualization Slide
-// slots.chart_renderer → chart_type에 따라 차트 컴포넌트 선택
-// slots.callout_box    → insight_text 존재 시 CalloutBox 렌더링
-// slots.bar_highlight  → 마지막 bar에 accent 색상 적용
+// Reference Component: Data Visualization Slide (Light Theme)
 
 const DataVizSlide = ({ content }) => {
-  // {{chart_renderer_slot}} - chart_type에 따라 분기
-  const ChartComponent = {
-    bar: BarChartRenderer,
-  }[content.chart.chart_type] ?? BarChartRenderer;
+  const data = (content.data || []).map((d) => ({
+    name: d.name, value: d.value,
+  }));
+  const CHART_COLORS = [THEME.primary, THEME.accent, "#F59E0B", THEME.green, "#EC4899", "#8B5CF6"];
 
   return (
-    <div style={{ background: THEME.background, padding: 32, height: "100%" }}>
-      <h2 style={{ color: THEME.text, fontSize: 24, fontWeight: "bold", marginBottom: 16 }}>
+    <div style={{
+      height: "100%", background: THEME.background,
+      padding: "48px 60px",
+    }}>
+      <h2 style={{
+        color: THEME.text, fontSize: 32, fontWeight: 800,
+        margin: "0 0 8px", textAlign: "center",
+      }}>
         {content.title}
       </h2>
-      <div style={{ position: "relative" }}>
-        <ChartComponent chart={content.chart} />
-        {/* {{callout_box_slot}} - insight_text 존재 시 렌더링 */}
-        {content.insight_text && (
-          <div style={{
-            position: "absolute", top: 0, right: 0,
-            background: THEME.accent, color: THEME.text,
-            padding: "6px 12px", borderRadius: 8,
-            fontSize: 13, fontWeight: "bold"
-          }}>
-            {content.insight_text}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+      <div style={{
+        width: 48, height: 4, borderRadius: 2,
+        background: THEME.primary, margin: "0 auto 12px",
+      }} />
+      {content.description && (
+        <p style={{
+          color: THEME.textSecondary, fontSize: 14,
+          textAlign: "center", margin: "0 0 24px",
+        }}>
+          {content.description}
+        </p>
+      )}
 
-const BarChartRenderer = ({ chart }) => {
-  const data = chart.data.labels.map((label, i) => ({
-    name: label,
-    value: chart.data.series[0].values[i],
-  }));
-  return (
-    <ResponsiveContainer width="100%" height={320}>
-      <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-        <XAxis dataKey="name" stroke={THEME.text} />
-        <YAxis stroke={THEME.text} />
-        <Tooltip />
-        {/* {{bar_highlight_slot}} - 마지막 bar에 accent 색상 */}
-        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-          {data.map((_, i) => (
-            <Cell key={i}
-              fill={i === data.length - 1 ? THEME.text : THEME.accent} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+      <div style={{
+        background: THEME.card, borderRadius: 16, padding: 24,
+        boxShadow: THEME.cardShadow, border: `1px solid ${THEME.cardBorder}`,
+      }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" stroke={THEME.divider} />
+            <XAxis dataKey="name" stroke={THEME.textSecondary} fontSize={12} />
+            <YAxis stroke={THEME.textSecondary} fontSize={12} />
+            <Tooltip />
+            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+              {data.map((_, i) => (
+                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {content.insight && (
+        <p style={{
+          color: THEME.primary, fontSize: 14, fontWeight: 600,
+          textAlign: "center", margin: "16px 0 0",
+        }}>
+          {content.insight}
+        </p>
+      )}
+    </div>
   );
 };

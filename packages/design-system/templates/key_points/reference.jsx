@@ -1,44 +1,68 @@
-// Reference Component: Key Points Slide
-// slots.grid_layout  → item_count에 따라 grid columns 결정
-// slots.metric_color → metric 부호에 따라 색상 분기
+// Reference Component: Key Points Slide (Light Theme)
 
 const KeyPointsSlide = ({ content }) => {
-  // {{grid_layout_slot}} - item_count에 따라 column 수 결정
-  const gridCols = { 1: 1, 2: 2, 3: 3 }[content.items.length] ?? 2;
+  const points = content.points || content.items || [];
+  const cols = points.length <= 2 ? 2 : points.length <= 4 ? 2 : 3;
 
   return (
-    <div style={{ background: THEME.background, padding: 32, height: "100%" }}>
-      <h2 style={{ color: THEME.text, fontSize: 24, fontWeight: "bold", marginBottom: 24 }}>
+    <div style={{
+      height: "100%", background: THEME.background,
+      padding: "48px 60px",
+    }}>
+      <h2 style={{
+        color: THEME.text, fontSize: 32, fontWeight: 800,
+        margin: "0 0 8px", textAlign: "center",
+      }}>
         {content.title}
       </h2>
       <div style={{
+        width: 48, height: 4, borderRadius: 2,
+        background: THEME.primary, margin: "0 auto 12px",
+      }} />
+      {content.description && (
+        <p style={{
+          color: THEME.textSecondary, fontSize: 14,
+          textAlign: "center", margin: "0 0 32px",
+        }}>
+          {content.description}
+        </p>
+      )}
+
+      <div style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-        gap: 24
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gap: 20, maxWidth: 800, margin: "0 auto",
       }}>
-        {content.items.map((item, i) => {
-          // {{metric_color_slot}} - +green / -red 분기
-          const metricColor = item.metric.startsWith("-") ? THEME.red
-            : item.metric.startsWith("+") ? THEME.green
-            : THEME.accent;
-          return (
-            <div key={i} style={{
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: 12, padding: 24,
-              border: `1px solid ${THEME.accent}33`
+        {points.map((pt, i) => (
+          <div key={i} style={{
+            background: THEME.card,
+            borderRadius: 16, padding: "24px 20px",
+            boxShadow: THEME.cardShadow,
+            border: `1px solid ${THEME.cardBorder}`,
+            display: "flex", alignItems: "flex-start", gap: 16,
+          }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: "50%", flexShrink: 0,
+              background: i % 2 === 0 ? THEME.iconBg1 : THEME.iconBg2,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 24, color: "#fff",
             }}>
-              <p style={{ color: THEME.text, opacity: 0.6, fontSize: 13, margin: "0 0 8px" }}>
-                {item.headline}
+              {pt.emoji || "●"}
+            </div>
+            <div>
+              <p style={{
+                color: THEME.text, fontSize: 17, fontWeight: 600, margin: "0 0 4px",
+              }}>
+                {pt.title}
               </p>
-              <p style={{ color: THEME.text, fontSize: 14, margin: "0 0 16px" }}>
-                {item.body}
-              </p>
-              <p style={{ color: metricColor, fontSize: 32, fontWeight: "bold", margin: 0 }}>
-                {item.metric}
+              <p style={{
+                color: THEME.textSecondary, fontSize: 13, lineHeight: 1.5, margin: 0,
+              }}>
+                {pt.description}
               </p>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
-// Reference Component: Process Flow Slide
-// Horizontal steps connected by arrows
+// Reference Component: Process Flow Slide (Light Theme)
 
 const ProcessFlowSlide = ({ content }) => {
   const steps = content.steps || [];
@@ -10,14 +9,18 @@ const ProcessFlowSlide = ({ content }) => {
       padding: "48px 40px",
     }}>
       <h2 style={{
-        color: THEME.text, fontSize: 28, fontWeight: 800,
+        color: THEME.text, fontSize: 32, fontWeight: 800,
         margin: "0 0 8px", textAlign: "center",
       }}>
         {content.title}
       </h2>
+      <div style={{
+        width: 48, height: 4, borderRadius: 2,
+        background: THEME.primary, margin: "0 auto 12px",
+      }} />
       {content.description && (
         <p style={{
-          color: THEME.text, opacity: 0.5, fontSize: 14,
+          color: THEME.textSecondary, fontSize: 14,
           textAlign: "center", margin: "0 0 40px",
         }}>
           {content.description}
@@ -31,17 +34,17 @@ const ProcessFlowSlide = ({ content }) => {
         {steps.map((step, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
-              background: THEME.glass, border: `1px solid ${THEME.glassBorder}`,
-              borderRadius: 16, padding: "20px 16px",
+              background: THEME.card, border: `1px solid ${THEME.cardBorder}`,
+              borderRadius: 16, padding: "20px 16px", boxShadow: THEME.cardShadow,
               textAlign: "center", minWidth: 130, maxWidth: 160,
             }}>
               <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: `${THEME.primary}22`,
+                width: 44, height: 44, borderRadius: "50%",
+                background: i % 2 === 0 ? THEME.iconBg1 : THEME.iconBg2,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 20, margin: "0 auto 10px",
+                fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 auto 10px",
               }}>
-                {step.emoji || step.step}
+                {step.emoji || i + 1}
               </div>
               <p style={{
                 color: THEME.text, fontSize: 14, fontWeight: 600, margin: "0 0 4px",
@@ -49,7 +52,7 @@ const ProcessFlowSlide = ({ content }) => {
                 {step.title}
               </p>
               <p style={{
-                color: THEME.text, opacity: 0.5, fontSize: 11,
+                color: THEME.textSecondary, fontSize: 11,
                 lineHeight: 1.3, margin: 0,
               }}>
                 {step.description}
@@ -57,7 +60,7 @@ const ProcessFlowSlide = ({ content }) => {
             </div>
             {i < steps.length - 1 && (
               <div style={{
-                color: THEME.accent, fontSize: 24, fontWeight: 700,
+                color: THEME.primary, fontSize: 24, fontWeight: 700,
               }}>→</div>
             )}
           </div>

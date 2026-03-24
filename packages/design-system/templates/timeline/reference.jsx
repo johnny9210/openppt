@@ -1,5 +1,4 @@
-// Reference Component: Timeline Slide
-// Horizontal timeline with event markers
+// Reference Component: Timeline Slide (Light Theme)
 
 const TimelineSlide = ({ content }) => {
   const events = content.events || [];
@@ -10,14 +9,18 @@ const TimelineSlide = ({ content }) => {
       padding: "48px 50px",
     }}>
       <h2 style={{
-        color: THEME.text, fontSize: 28, fontWeight: 800,
+        color: THEME.text, fontSize: 32, fontWeight: 800,
         margin: "0 0 8px", textAlign: "center",
       }}>
         {content.title}
       </h2>
+      <div style={{
+        width: 48, height: 4, borderRadius: 2,
+        background: THEME.primary, margin: "0 auto 12px",
+      }} />
       {content.description && (
         <p style={{
-          color: THEME.text, opacity: 0.5, fontSize: 14,
+          color: THEME.textSecondary, fontSize: 14,
           textAlign: "center", margin: "0 0 40px",
         }}>
           {content.description}
@@ -41,27 +44,23 @@ const TimelineSlide = ({ content }) => {
               display: "flex", flexDirection: "column", alignItems: "center",
               width: `${100 / events.length}%`,
             }}>
-              {/* Time label */}
               <p style={{
-                color: THEME.accent, fontSize: 12, fontWeight: 600,
+                color: THEME.primary, fontSize: 12, fontWeight: 600,
                 margin: "0 0 8px", textAlign: "center",
               }}>
                 {evt.time}
               </p>
-              {/* Circle marker */}
               <div style={{
                 width: 40, height: 40, borderRadius: "50%",
-                background: THEME.background,
-                border: `3px solid ${THEME.accent}`,
+                background: i % 2 === 0 ? THEME.iconBg1 : THEME.iconBg2,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 18, marginBottom: 12, zIndex: 1,
+                fontSize: 18, color: "#fff", marginBottom: 12, zIndex: 1,
               }}>
                 {evt.emoji}
               </div>
-              {/* Card */}
               <div style={{
-                background: THEME.glass, border: `1px solid ${THEME.glassBorder}`,
-                borderRadius: 12, padding: "12px 10px",
+                background: THEME.card, border: `1px solid ${THEME.cardBorder}`,
+                borderRadius: 12, padding: "12px 10px", boxShadow: THEME.cardShadow,
                 textAlign: "center", width: "100%",
               }}>
                 <p style={{
@@ -71,7 +70,7 @@ const TimelineSlide = ({ content }) => {
                   {evt.title}
                 </p>
                 <p style={{
-                  color: THEME.text, opacity: 0.5, fontSize: 11,
+                  color: THEME.textSecondary, fontSize: 11,
                   lineHeight: 1.3, margin: 0,
                 }}>
                   {evt.description}

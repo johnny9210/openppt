@@ -1,5 +1,4 @@
-// Reference Component: Quote Slide
-// Large quote with decorative quotation marks
+// Reference Component: Quote Slide (Light Theme)
 
 const QuoteSlide = ({ content }) => {
   return (
@@ -11,14 +10,14 @@ const QuoteSlide = ({ content }) => {
     }}>
       {/* Decorative quote mark */}
       <div style={{
-        fontSize: 120, color: THEME.accent, opacity: 0.15,
+        fontSize: 120, color: THEME.primary, opacity: 0.12,
         position: "absolute", top: 40, left: 60, lineHeight: 1,
         fontFamily: "Georgia, serif",
       }}>"</div>
 
       {/* Accent bar */}
       <div style={{
-        width: 4, height: 60, background: THEME.accent,
+        width: 4, height: 60, background: THEME.primary,
         borderRadius: 2, marginBottom: 32,
       }} />
 
@@ -32,14 +31,14 @@ const QuoteSlide = ({ content }) => {
 
       {content.attribution && (
         <p style={{
-          color: THEME.text, opacity: 0.4, fontSize: 16, margin: "0 0 8px",
+          color: THEME.textSecondary, fontSize: 16, margin: "0 0 8px",
         }}>
           — {content.attribution}
         </p>
       )}
       {content.context && (
         <p style={{
-          color: THEME.text, opacity: 0.3, fontSize: 14, margin: 0,
+          color: THEME.textSecondary, fontSize: 14, margin: 0, opacity: 0.6,
         }}>
           {content.context}
         </p>

@@ -141,20 +141,23 @@ async def _verify_all_slides(
     slides: list[dict],
     react_code: str,
 ) -> tuple[bool, list[dict]]:
-    """Verify all slides. Returns (passed, failed_slides)."""
-    failed_slides = []
+    """Verify all slides in parallel. Returns (passed, failed_slides)."""
+    import asyncio
 
-    for slide in slides:
+    async def _check_one(slide):
         generated = extract_slide_component(react_code, slide["slide_id"], slide["type"])
         result = await _verify_slide(slide, generated)
-
         if not result.get("pass", False):
-            failed_slides.append({
+            return {
                 "slide_id": slide["slide_id"],
                 "slide_type": slide["type"],
                 "issues": result.get("issues", []),
                 "summary": result.get("summary", ""),
-            })
+            }
+        return None
+
+    results = await asyncio.gather(*[_check_one(s) for s in slides])
+    failed_slides = [r for r in results if r is not None]
 
     return len(failed_slides) == 0, failed_slides
 
@@ -194,11 +197,22 @@ async def semantic_validator(state: PPTState) -> dict:
 
     slides = slide_spec["ppt_state"]["presentation"]["slides"]
 
-    # Verify each slide's content is properly reflected
+    # On retry, only re-verify the slides that were previously fixed
     import logging
     _logger = logging.getLogger(__name__)
 
-    passed, failed = await _verify_all_slides(slides, react_code)
+    prev_validation = state.get("validation_result", {})
+    prev_failed_ids = set(prev_validation.get("failed_slide_ids", []))
+    revision_count = state.get("revision_count", 0)
+
+    if prev_failed_ids and revision_count > 0:
+        slides_to_verify = [s for s in slides if s["slide_id"] in prev_failed_ids]
+        _logger.info("[SemanticValidator] Retry mode: verifying %d/%d failed slides only",
+                     len(slides_to_verify), len(slides))
+    else:
+        slides_to_verify = slides
+
+    passed, failed = await _verify_all_slides(slides_to_verify, react_code)
 
     total = len(slides)
     passed_count = total - len(failed)

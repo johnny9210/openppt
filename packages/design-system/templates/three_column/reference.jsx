@@ -1,5 +1,4 @@
-// Reference Component: Three Column Slide
-// Three equal vertical cards side by side
+// Reference Component: Three Column Slide (Light Theme)
 
 const ThreeColumnSlide = ({ content }) => {
   const columns = content.columns || [];
@@ -10,14 +9,18 @@ const ThreeColumnSlide = ({ content }) => {
       padding: "48px 50px",
     }}>
       <h2 style={{
-        color: THEME.text, fontSize: 28, fontWeight: 800,
+        color: THEME.text, fontSize: 32, fontWeight: 800,
         margin: "0 0 8px", textAlign: "center",
       }}>
         {content.title}
       </h2>
+      <div style={{
+        width: 48, height: 4, borderRadius: 2,
+        background: THEME.primary, margin: "0 auto 12px",
+      }} />
       {content.description && (
         <p style={{
-          color: THEME.text, opacity: 0.5, fontSize: 14,
+          color: THEME.textSecondary, fontSize: 14,
           textAlign: "center", margin: "0 0 32px",
         }}>
           {content.description}
@@ -26,16 +29,17 @@ const ThreeColumnSlide = ({ content }) => {
       <div style={{ display: "flex", gap: 20 }}>
         {columns.map((col, i) => (
           <div key={i} style={{
-            flex: 1, background: THEME.glass,
-            border: `1px solid ${THEME.glassBorder}`,
+            flex: 1, background: THEME.card,
+            border: `1px solid ${THEME.cardBorder}`,
             borderRadius: 16, padding: "28px 20px",
+            boxShadow: THEME.cardShadow,
             textAlign: "center",
           }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 16,
-              background: `${THEME.accent}18`,
+              width: 56, height: 56, borderRadius: "50%",
+              background: i % 3 === 0 ? THEME.iconBg1 : i % 3 === 1 ? THEME.iconBg2 : THEME.green,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 26, margin: "0 auto 16px",
+              fontSize: 26, color: "#fff", margin: "0 auto 16px",
             }}>
               {col.emoji}
             </div>
@@ -46,14 +50,14 @@ const ThreeColumnSlide = ({ content }) => {
               {col.title}
             </h3>
             <p style={{
-              color: THEME.text, opacity: 0.5, fontSize: 13,
+              color: THEME.textSecondary, fontSize: 13,
               lineHeight: 1.5, margin: "0 0 16px",
             }}>
               {col.description}
             </p>
             {col.metric && (
               <p style={{
-                color: THEME.accent, fontSize: 20, fontWeight: 800, margin: 0,
+                color: THEME.primary, fontSize: 20, fontWeight: 800, margin: 0,
               }}>
                 {col.metric}
               </p>

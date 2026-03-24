@@ -1,5 +1,4 @@
-// Reference Component: Hero Slide
-// Large centered message with optional accent word highlighting
+// Reference Component: Hero Slide (Light Theme)
 
 const HeroSlide = ({ content }) => {
   const title = content.title || "";
@@ -13,7 +12,7 @@ const HeroSlide = ({ content }) => {
     return (
       <>
         {parts[0]}
-        <span style={{ color: THEME.accent }}>{accent}</span>
+        <span style={{ color: THEME.primary }}>{accent}</span>
         {parts.slice(1).join(accent)}
       </>
     );
@@ -34,7 +33,7 @@ const HeroSlide = ({ content }) => {
       </h1>
       {content.subtitle && (
         <p style={{
-          color: THEME.text, opacity: 0.5, fontSize: 20,
+          color: THEME.textSecondary, fontSize: 20,
           lineHeight: 1.6, margin: 0, maxWidth: 600,
         }}>
           {content.subtitle}
