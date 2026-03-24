@@ -402,10 +402,19 @@ def _clean_slide_code(code: str) -> str:
 TYPE_COMPONENT_MAP = {
     "cover": "CoverSlide",
     "table_of_contents": "TocSlide",
-    "data_visualization": "DataVizSlide",
+    "hero": "HeroSlide",
+    "quote": "QuoteSlide",
+    "icon_grid": "IconGridSlide",
     "key_points": "KeyPointsSlide",
+    "three_column": "ThreeColumnSlide",
+    "comparison": "ComparisonSlide",
+    "process_flow": "ProcessFlowSlide",
+    "timeline": "TimelineSlide",
+    "data_visualization": "DataVizSlide",
     "risk_analysis": "RiskSlide",
     "action_plan": "ActionPlanSlide",
+    "summary": "SummarySlide",
+    "closing": "ClosingSlide",
 }
 
 

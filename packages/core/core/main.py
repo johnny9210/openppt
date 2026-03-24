@@ -8,8 +8,11 @@ Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -19,8 +22,9 @@ from pydantic import BaseModel
 from langgraph.types import Command
 
 from core.pipeline import get_pipeline
+from core.database import get_sessions_collection
 
-app = FastAPI(title="PPT Code Generation API", version="0.2.0")
+app = FastAPI(title="PPT Code Generation API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +45,52 @@ class GenerateRequest(BaseModel):
 class HumanReviewRequest(BaseModel):
     session_id: str
     action: str  # "retry" | "approve" | "abort"
+
+
+# --- MongoDB session helpers ---
+
+async def save_session(session_id: str, state_values: dict) -> None:
+    """Save pipeline final state to MongoDB."""
+    col = get_sessions_collection()
+    doc = {
+        "session_id": session_id,
+        "user_request": state_values.get("user_request", ""),
+        "research_brief": state_values.get("research_brief", {}),
+        "slide_contents": state_values.get("slide_contents", []),
+        "slide_designs": state_values.get("slide_designs", []),
+        "generated_slides": state_values.get("generated_slides", []),
+        "react_code": state_values.get("react_code", ""),
+        "slide_spec": state_values.get("slide_spec", {}),
+        "validation_result": state_values.get("validation_result", {}),
+        "revision_count": state_values.get("revision_count", 0),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await col.update_one(
+        {"session_id": session_id},
+        {"$set": doc},
+        upsert=True,
+    )
+    logger.info("[MongoDB] Session saved: %s", session_id)
+
+
+async def load_session(session_id: str) -> dict | None:
+    """Load session from MongoDB."""
+    col = get_sessions_collection()
+    return await col.find_one({"session_id": session_id})
+
+
+# --- Index creation on startup ---
+
+@app.on_event("startup")
+async def create_indexes():
+    try:
+        col = get_sessions_collection()
+        await col.create_index("session_id", unique=True)
+        await col.create_index("created_at")
+        logger.info("[MongoDB] Indexes ensured")
+    except Exception as e:
+        logger.warning("[MongoDB] Index creation deferred (mongo may not be ready yet): %s", e)
 
 
 # --- SSE Streaming Endpoints ---
@@ -165,6 +215,10 @@ async def generate_ppt(request: GenerateRequest):
         print(f"[COMPLETE] react_code: {len(final_state.values.get('react_code', ''))} chars", flush=True)
         print(f"[COMPLETE] slide_spec slides: {len(final_slide_spec.get('ppt_state', {}).get('presentation', {}).get('slides', []))}", flush=True)
         print(f"[COMPLETE] revision_count: {final_state.values.get('revision_count', 0)}", flush=True)
+
+        # Save to MongoDB
+        await save_session(thread_id, final_state.values)
+
         yield ServerSentEvent(
             raw_data=json.dumps(
                 {
@@ -213,21 +267,67 @@ async def human_review(request: HumanReviewRequest):
 
 @app.get("/api/session/{session_id}")
 async def get_session(session_id: str):
-    """Get current session state."""
-    pipeline = get_pipeline()
-    config = {"configurable": {"thread_id": session_id}}
-
-    state = pipeline.get_state(config)
-    if not state.values:
+    """Get current session state (from MongoDB)."""
+    session = await load_session(session_id)
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     return {
         "session_id": session_id,
-        "react_code": state.values.get("react_code", ""),
-        "research_brief": state.values.get("research_brief", {}),
-        "validation_result": state.values.get("validation_result", {}),
-        "revision_count": state.values.get("revision_count", 0),
+        "react_code": session.get("react_code", ""),
+        "research_brief": session.get("research_brief", {}),
+        "validation_result": session.get("validation_result", {}),
+        "revision_count": session.get("revision_count", 0),
     }
+
+
+@app.get("/api/export/pptx/{session_id}")
+async def export_pptx(session_id: str):
+    """Export session result as a .pptx file (reads from MongoDB)."""
+    from core.export.pptx_exporter import export_pptx as generate_pptx
+
+    session = await load_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    slide_spec = session.get("slide_spec", {})
+    slide_contents = session.get("slide_contents", [])
+    slide_designs = session.get("slide_designs", [])
+
+    if not slide_spec:
+        raise HTTPException(status_code=400, detail="No slide spec available")
+
+    try:
+        buf = generate_pptx(slide_spec, slide_contents, slide_designs)
+    except Exception as e:
+        logger.error("PPTX export failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+    # Build filename from presentation title
+    title = (
+        slide_spec
+        .get("ppt_state", {})
+        .get("presentation", {})
+        .get("meta", {})
+        .get("title", "presentation")
+    )
+    safe_title = "".join(
+        c for c in title if c.isalnum() or c in " _-" or ("\uac00" <= c <= "\ud7a3")
+    ).strip()[:50]
+    if not safe_title:
+        safe_title = "presentation"
+    filename = f"{safe_title}.pptx"
+
+    ascii_fallback = "presentation.pptx"
+    encoded_filename = quote(filename)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}",
+        },
+    )
 
 
 @app.get("/api/health")

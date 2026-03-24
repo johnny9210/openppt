@@ -6,12 +6,28 @@ import ProgressBar from "@/components/chat/ProgressBar";
 import SlidePreview from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
 import { useStore } from "@/lib/store";
+import { downloadPptx } from "@/lib/api";
 
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
-  const { reactCode, slideCodes, slideSpec, isGenerating, progressSteps, validationResult } = useStore();
+  const [isExporting, setIsExporting] = useState(false);
+  const { reactCode, slideCodes, slideSpec, isGenerating, progressSteps, validationResult, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
+  const canExport = !!sessionId && !!reactCode && !isGenerating;
+
+  const handleDownloadPptx = async () => {
+    if (!sessionId || isExporting) return;
+    setIsExporting(true);
+    try {
+      await downloadPptx(sessionId);
+    } catch (err) {
+      console.error("PPTX export failed:", err);
+      alert(`다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen">
@@ -34,6 +50,30 @@ export default function EditorPage() {
             >
               {validationResult.layer}: {validationResult.status}
             </span>
+          )}
+          {canExport && (
+            <button
+              onClick={handleDownloadPptx}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isExporting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  내보내는 중...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  PPTX 다운로드
+                </>
+              )}
+            </button>
           )}
         </div>
       </header>

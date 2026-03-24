@@ -19,10 +19,19 @@ logger = logging.getLogger(__name__)
 COMPONENT_NAMES = {
     "cover": "CoverSlide",
     "table_of_contents": "TocSlide",
-    "data_visualization": "DataVizSlide",
+    "hero": "HeroSlide",
+    "quote": "QuoteSlide",
+    "icon_grid": "IconGridSlide",
     "key_points": "KeyPointsSlide",
+    "three_column": "ThreeColumnSlide",
+    "comparison": "ComparisonSlide",
+    "process_flow": "ProcessFlowSlide",
+    "timeline": "TimelineSlide",
+    "data_visualization": "DataVizSlide",
     "risk_analysis": "RiskSlide",
     "action_plan": "ActionPlanSlide",
+    "summary": "SummarySlide",
+    "closing": "ClosingSlide",
 }
 
 SYNTHESIZER_SYSTEM_PROMPT = """당신은 프리미엄 프레젠테이션 슬라이드를 위한 React 컴포넌트 전문 개발자입니다.

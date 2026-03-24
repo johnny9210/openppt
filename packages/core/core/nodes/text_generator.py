@@ -93,6 +93,98 @@ type: {slide_type}
 }}
 ```
 
+### hero
+```json
+{{
+    "title": "강조할 핵심 메시지",
+    "subtitle": "보조 설명 (1~2문장)",
+    "accent_word": "제목에서 강조할 단어"
+}}
+```
+
+### quote
+```json
+{{
+    "quote": "인용구 또는 핵심 문구",
+    "attribution": "출처 또는 설명 (선택)",
+    "context": "부연 설명 (선택)"
+}}
+```
+
+### icon_grid
+```json
+{{
+    "title": "섹션 제목",
+    "description": "섹션 설명",
+    "items": [
+        {{"emoji": "🔔", "label": "항목명", "description": "간단한 설명"}}
+    ]
+}}
+```
+
+### process_flow
+```json
+{{
+    "title": "프로세스 제목",
+    "description": "프로세스 설명",
+    "steps": [
+        {{"step": 1, "emoji": "⏰", "title": "단계명", "description": "단계 설명"}}
+    ]
+}}
+```
+
+### comparison
+```json
+{{
+    "title": "비교 제목",
+    "left": {{"label": "Before / 문제", "items": ["항목1", "항목2", "항목3"]}},
+    "right": {{"label": "After / 해결", "items": ["항목1", "항목2", "항목3"]}}
+}}
+```
+
+### three_column
+```json
+{{
+    "title": "섹션 제목",
+    "description": "섹션 설명",
+    "columns": [
+        {{"emoji": "📧", "title": "칼럼 제목", "description": "칼럼 설명", "metric": "수치 (선택)"}}
+    ]
+}}
+```
+
+### timeline
+```json
+{{
+    "title": "타임라인 제목",
+    "description": "타임라인 설명",
+    "events": [
+        {{"time": "시점 (예: 오전 7시, Phase 1)", "emoji": "🌅", "title": "이벤트명", "description": "이벤트 설명"}}
+    ]
+}}
+```
+
+### summary
+```json
+{{
+    "title": "정리 제목",
+    "points": [
+        {{"number": 1, "title": "핵심 포인트", "description": "부연 설명"}}
+    ]
+}}
+```
+
+### closing
+```json
+{{
+    "title": "마무리 제목",
+    "message": "마무리 메시지 (감사, CTA 등)",
+    "resources": [
+        {{"emoji": "📚", "label": "자료 유형", "description": "설명 또는 링크"}}
+    ]
+}}
+```
+
 반드시 해당 슬라이드 타입에 맞는 JSON 형식으로만 응답하세요.
 콘텐츠는 구체적이고 전문적으로 작성하세요."""
 

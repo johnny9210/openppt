@@ -75,3 +75,29 @@ export async function submitHumanReview(sessionId: string, action: string) {
   });
   return response.json();
 }
+
+export async function downloadPptx(sessionId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/export/pptx/${sessionId}`);
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Export failed" }));
+    throw new Error(err.detail || `Export error: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition");
+  let filename = "presentation.pptx";
+  if (disposition) {
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    if (match) filename = match[1];
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

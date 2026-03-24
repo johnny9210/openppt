@@ -194,6 +194,276 @@ ACTION_PLAN_PROMPT = """Create a professional ACTION PLAN / TIMELINE slide image
 Generate the action plan slide design image now."""
 
 
+HERO_PROMPT = """Create a professional HERO MESSAGE slide image.
+
+## Layout
+- A single powerful message displayed LARGE and CENTERED
+- Main text: Very large bold font (60-80px equivalent), centered vertically and horizontally
+- Subtitle text below: Smaller, lighter weight (18-20px), gray
+- Accent word in the title should use {accent_color} color
+- Generous whitespace around the text — let it breathe
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- Optional: A large, faded decorative icon or shape behind the text (very subtle, 5% opacity)
+- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
+- Typography: Clean sans-serif, extra bold for the main message
+- Minimal design — the text IS the visual
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Clean, impactful, minimal look
+- Korean text must be rendered clearly with bold sans-serif font
+- The large centered text is the KEY visual element
+
+Generate the hero message slide design image now."""
+
+
+QUOTE_PROMPT = """Create a professional QUOTE slide image.
+
+## Layout
+- Large opening quotation mark (") in {accent_color}, decorative, top-left of the quote area
+- Quote text: Large bold font (32-40px equivalent), centered
+- Attribution/source below the quote: Smaller, lighter text with a dash prefix
+- Optional context line below attribution
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- A vertical accent bar on the left side using {primary_color}
+- Decorative elements: subtle, minimal
+- Typography: Serif or elegant sans-serif for the quote, regular sans-serif for attribution
+- Warm, thoughtful mood
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- The quote should feel impactful and readable
+- Korean text must be rendered clearly
+- Generous whitespace around the quote text
+
+Generate the quote slide design image now."""
+
+
+ICON_GRID_PROMPT = """Create a professional ICON GRID slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with a short colored underline bar
+- GRID of 5-6 items arranged in 2 rows x 3 columns (or 3x2)
+- Each item is a compact card containing:
+  - A large circular icon (50-60px) with colored background at the top
+  - Label text below the icon: Bold, centered
+  - Short description below: Small, gray, centered
+- Cards are evenly spaced with generous gaps
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern
+- Icon circles: Alternate between {primary_color} and {accent_color} backgrounds
+- Cards: Light background, rounded corners, subtle shadow
+- Typography: Clean sans-serif, centered text alignment
+- Each icon should be distinct and relevant to its label
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Clean, organized, professional look
+- Korean text clearly rendered
+- The icon grid with colorful circles is the KEY visual element
+
+Generate the icon grid slide design image now."""
+
+
+PROCESS_FLOW_PROMPT = """Create a professional PROCESS FLOW slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with colored underline bar
+- HORIZONTAL FLOW of 3-5 steps connected by arrows
+- Each step is a rounded rectangle card containing:
+  - Step number or icon at the top (colored circle)
+  - Step title: Bold text
+  - Step description: Smaller gray text
+- Large arrow (→) connecting each step, using {accent_color}
+- Steps arranged LEFT to RIGHT in a single row
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- Step cards: White with rounded corners, subtle shadow
+- Arrows: Bold, colored, clearly visible connecting the steps
+- Step numbers: Colored circles with white text using {primary_color}
+- Typography: Clean sans-serif
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- The horizontal arrow flow is the KEY visual element
+- Steps should feel like a clear progression
+- Korean text clearly rendered
+
+Generate the process flow slide design image now."""
+
+
+COMPARISON_PROMPT = """Create a professional COMPARISON slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with colored underline bar
+- TWO COLUMNS side by side, split at the center
+- LEFT COLUMN:
+  - Header with icon and label (e.g., "Before" or "Problem")
+  - Background tint: subtle red/warm tone
+  - List of items with bullet points or X marks
+- RIGHT COLUMN:
+  - Header with icon and label (e.g., "After" or "Solution")
+  - Background tint: subtle green/cool tone
+  - List of items with bullet points or check marks
+- A vertical divider or VS icon between the columns
+
+## Design Style
+- Background: Clean light/white (#F5F7FA)
+- Left column: Subtle warm tint (light red/orange background)
+- Right column: Subtle cool tint (light green/blue background)
+- Typography: Clean sans-serif, bold headers
+- Clear visual contrast between the two sides
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- The two-column contrast is the KEY visual element
+- Korean text clearly rendered
+- Balance between left and right sides
+
+Generate the comparison slide design image now."""
+
+
+THREE_COLUMN_PROMPT = """Create a professional THREE COLUMN slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with colored underline bar
+- THREE EQUAL COLUMNS arranged horizontally
+- Each column is a tall card containing:
+  - Icon or emoji at the top (large, in a colored circle)
+  - Column title: Bold, centered
+  - Column description: Regular, gray, centered
+  - Optional metric at bottom: Large, bold, colored
+- Cards have equal width and height, rounded corners
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- Cards: White with subtle shadow and thin border
+- Icon circles: Alternate colors using {primary_color} and {accent_color}
+- Typography: Clean sans-serif, centered alignment
+- Balanced, symmetric layout
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Three equal columns is the KEY visual element
+- Korean text clearly rendered
+- Clean, professional, balanced look
+
+Generate the three column slide design image now."""
+
+
+TIMELINE_PROMPT = """Create a professional TIMELINE slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with colored underline bar
+- HORIZONTAL TIMELINE running left to right
+- A thin horizontal line as the timeline spine
+- Events marked with circles on the timeline:
+  - Circle with time label above
+  - Card below with icon, title, and description
+- Events evenly spaced along the timeline
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- Timeline line: Colored gradient using {primary_color} to {accent_color}
+- Event circles: Colored, connected to cards with thin lines
+- Cards: Light background, rounded corners, compact
+- Typography: Clean sans-serif
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- The horizontal timeline with event markers is the KEY visual element
+- Korean text clearly rendered
+- Clear temporal progression from left to right
+
+Generate the timeline slide design image now."""
+
+
+SUMMARY_PROMPT = """Create a professional SUMMARY / RECAP slide image.
+
+## Layout
+- Title "{topic}" centered at the top, large bold text with colored underline bar
+- NUMBERED LIST of key takeaways (typically 3)
+- Each item has:
+  - A large colored number (1, 2, 3) on the left using {primary_color}
+  - Bold title text next to the number
+  - Description text below in gray
+- Items stacked vertically with generous spacing
+- Optional: A decorative checkmark or star icon next to each item
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- Numbers: Large (40-50px), bold, colored
+- Typography: Clean sans-serif, clear hierarchy
+- Warm, conclusive mood
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- The large numbered takeaways is the KEY visual element
+- Korean text clearly rendered
+- Should feel like a satisfying conclusion
+
+Generate the summary slide design image now."""
+
+
+CLOSING_PROMPT = """Create a professional CLOSING slide image.
+
+## Layout
+- Title "{topic}" centered, large bold text
+- Main message: Medium text centered below title
+- RESOURCE CARDS or links arranged in a row at the bottom:
+  - Each card has an icon and a label (e.g., book, GitHub, YouTube)
+  - Cards evenly spaced horizontally
+- Optional: QR code placeholder area
+- "Thank you" or closing message at the very bottom
+
+## Design Style
+- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
+- Resource cards: White with subtle shadow, rounded corners, icon + text
+- Typography: Clean sans-serif, warm and closing tone
+- Accent elements using {primary_color} and {accent_color}
+
+## Content Hints
+{content_hints}
+
+## Requirements
+- Aspect ratio: 16:9 widescreen
+- Resource links and closing message are the KEY elements
+- Korean text clearly rendered
+- Should feel like a proper, professional ending
+
+Generate the closing slide design image now."""
+
+
 GENERIC_PROMPT = """Create a professional presentation slide design.
 
 ## Slide Specifications
@@ -231,10 +501,19 @@ Generate the slide design image now."""
 TYPE_PROMPT_MAP = {
     "cover": COVER_PROMPT,
     "table_of_contents": TOC_PROMPT,
+    "hero": HERO_PROMPT,
+    "quote": QUOTE_PROMPT,
+    "icon_grid": ICON_GRID_PROMPT,
     "key_points": KEY_POINTS_PROMPT,
+    "three_column": THREE_COLUMN_PROMPT,
+    "comparison": COMPARISON_PROMPT,
+    "process_flow": PROCESS_FLOW_PROMPT,
+    "timeline": TIMELINE_PROMPT,
     "data_visualization": DATA_VIZ_PROMPT,
-    "action_plan": ACTION_PLAN_PROMPT,
     "risk_analysis": KEY_POINTS_PROMPT,  # reuse key_points layout
+    "action_plan": ACTION_PLAN_PROMPT,
+    "summary": SUMMARY_PROMPT,
+    "closing": CLOSING_PROMPT,
 }
 
 
