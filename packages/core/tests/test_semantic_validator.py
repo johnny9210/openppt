@@ -1,91 +1,50 @@
-"""Tests for semantic_validator — extract_slide_component and slot classification."""
+"""Tests for semantic_validator — extract_slide_component and content key extraction."""
 
 import pytest
 from core.nodes.semantic_validator import (
     extract_slide_component,
-    extract_slots,
-    _classify_importance,
+    _extract_content_keys,
 )
 
 
-# ─── _classify_importance ───────────────────────────────────────────
+# ─── _extract_content_keys ──────────────────────────────────────────
 
 
-class TestClassifyImportance:
-    def test_critical_slots(self):
-        assert _classify_importance("chart_renderer") == "critical"
-        assert _classify_importance("grid_layout") == "critical"
-        assert _classify_importance("list_layout") == "critical"
-
-    def test_major_slots(self):
-        assert _classify_importance("severity_badge") == "major"
-        assert _classify_importance("metric_color") == "major"
-        assert _classify_importance("bar_highlight") == "major"
-
-    def test_minor_slots(self):
-        assert _classify_importance("title_size") == "minor"
-        assert _classify_importance("subtitle") == "minor"
-        assert _classify_importance("background") == "minor"
-
-
-# ─── extract_slots ──────────────────────────────────────────────────
-
-
-class TestExtractSlots:
-    def test_extract_multiple_slots(self):
-        spec = {
-            "ppt_state": {
-                "presentation": {
-                    "slides": [
-                        {
-                            "slide_id": "slide_001",
-                            "type": "cover",
-                            "slots": {
-                                "title_size": "제목 글자 크기 조정",
-                                "background": "배경색 설정",
-                            },
-                        },
-                        {
-                            "slide_id": "slide_003",
-                            "type": "data_visualization",
-                            "slots": {
-                                "chart_renderer": "차트 타입에 따라 렌더링",
-                            },
-                        },
-                    ]
-                }
-            }
+class TestExtractContentKeys:
+    def test_extracts_critical_keys(self):
+        slide = {
+            "slide_id": "slide_001",
+            "type": "cover",
+            "content": {
+                "title": "테스트 제목",
+                "subtitle": "부제목",
+            },
         }
-        slots = extract_slots(spec)
-        assert len(slots) == 3
-        keys = {s.slot_key for s in slots}
-        assert keys == {"title_size", "background", "chart_renderer"}
+        keys = _extract_content_keys(slide)
+        assert len(keys) == 2
+        titles = [k for k in keys if k["key"] == "title"]
+        assert len(titles) == 1
+        assert titles[0]["importance"] == "critical"
 
-    def test_empty_slots(self):
-        spec = {
-            "ppt_state": {
-                "presentation": {
-                    "slides": [
-                        {"slide_id": "slide_001", "type": "cover", "slots": {}},
-                    ]
-                }
-            }
+    def test_skips_empty_values(self):
+        slide = {
+            "slide_id": "slide_001",
+            "type": "cover",
+            "content": {
+                "title": "테스트",
+                "subtitle": "",
+                "items": [],
+                "extra": None,
+            },
         }
-        slots = extract_slots(spec)
-        assert len(slots) == 0
+        keys = _extract_content_keys(slide)
+        assert len(keys) == 1
+        assert keys[0]["key"] == "title"
 
-    def test_no_slots_key(self):
-        spec = {
-            "ppt_state": {
-                "presentation": {
-                    "slides": [
-                        {"slide_id": "slide_001", "type": "cover"},
-                    ]
-                }
-            }
-        }
-        slots = extract_slots(spec)
-        assert len(slots) == 0
+    def test_empty_content(self):
+        slide = {"slide_id": "slide_001", "type": "cover", "content": {}}
+        keys = _extract_content_keys(slide)
+        assert len(keys) == 0
 
 
 # ─── extract_slide_component ────────────────────────────────────────

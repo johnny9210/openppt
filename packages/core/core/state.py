@@ -37,3 +37,4 @@ class SlideGeneratorState(TypedDict):
     reference_component: str
     generated_code: str
     fix_prompt: str  # Semantic validation feedback for retries
+    edit_request: str  # User's edit instruction (edit mode only)

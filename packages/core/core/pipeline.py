@@ -35,6 +35,13 @@ from core.nodes.semantic_validator import semantic_validator
 
 # --- Routing functions (must return string node names) ---
 
+def route_after_mode(state: PPTState) -> Literal["intent_parser", "slide_dispatcher"]:
+    """Edit mode skips preprocessing — slide_spec already exists in state."""
+    if state.get("mode") == "edit":
+        return "slide_dispatcher"
+    return "intent_parser"
+
+
 def route_json_validation(state: PPTState) -> Literal["design_system_loader", "intent_parser"]:
     """Route after JSON validation: pass → continue, fail → retry intent_parser."""
     result = state.get("validation_result", {})
@@ -214,9 +221,10 @@ def build_pipeline():
 
     # --- Edges ---
 
-    # Phase 0 → Phase 1
+    # Phase 0 → conditional routing based on mode
     graph.add_edge(START, "mode_router")
-    graph.add_edge("mode_router", "intent_parser")
+    # Edit mode skips preprocessing (slide_spec already in state)
+    graph.add_conditional_edges("mode_router", route_after_mode)
     graph.add_edge("intent_parser", "schema_abstractor")
     graph.add_edge("schema_abstractor", "json_validator")
 
@@ -239,7 +247,7 @@ def build_pipeline():
     graph.add_edge("semantic_validator", "semantic_decision")
     # semantic_decision returns Command(goto=END|"slide_dispatcher") — no outgoing edge needed
 
-    # Compile with checkpointer (required for interrupt)
+    # InMemorySaver — sessions lost on restart, but edit endpoint handles 404 gracefully
     checkpointer = InMemorySaver()
     return graph.compile(checkpointer=checkpointer)
 

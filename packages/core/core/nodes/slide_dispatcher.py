@@ -148,6 +148,7 @@ def slide_dispatcher(state: PPTState) -> Command:
             slides = [s for s in slides if s["slide_id"] in failed_ids]
 
     sends = []
+    edit_request = state.get("user_request", "") if state.get("mode") == "edit" else ""
     for slide in slides:
         slide_type = slide["type"]
         # Give each slide only its own relevant fix instructions
@@ -165,6 +166,7 @@ def slide_dispatcher(state: PPTState) -> Command:
                     "reference_component": reference_components.get(slide_type, ""),
                     "generated_code": "",
                     "fix_prompt": slide_fix,
+                    "edit_request": edit_request,
                 },
             )
         )

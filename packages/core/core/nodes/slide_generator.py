@@ -124,7 +124,44 @@ async def slide_generator(state: SlideGeneratorState) -> dict:
 
     fix_prompt = state.get("fix_prompt", "")
 
-    user_prompt = f"""
+    edit_request = state.get("edit_request", "")
+
+    if edit_request:
+        # Edit mode: prioritize user's change request over original content
+        user_prompt = f"""
+[슬라이드]
+slide_id: {slide["slide_id"]}
+type: {slide["type"]}
+컴포넌트 이름: {comp_name}  ← 반드시 이 이름으로 const 선언하세요
+
+[현재 콘텐츠 데이터 (수정 전 원본)]
+{json.dumps(slide["content"], ensure_ascii=False, indent=2)}
+
+[사용자 수정 요청 — 이것이 최우선입니다]
+{edit_request}
+
+[테마 컬러]
+primary_color: {theme["primary_color"]}
+accent_color: {theme["accent_color"]}
+background: {theme["background"]}
+text_color: {theme["text_color"]}
+
+[스타일 참고 코드 (영감용 — 구조를 그대로 따르지 마세요)]
+{reference}
+
+기존 슬라이드를 사용자의 수정 요청에 따라 변경하여 React 컴포넌트를 생성하세요.
+
+중요:
+- 사용자의 수정 요청을 반드시 반영하세요 (텍스트 변경, 항목 추가/삭제 등)
+- 수정된 텍스트는 JSX에 직접 작성하세요 (props에서 읽지 마세요)
+- 수정되지 않은 부분은 content props에서 읽어도 됩니다
+- 디자인 가이드라인의 글라스모피즘 스타일 유지
+- 기존 레이아웃 구조를 최대한 유지하면서 수정 사항만 반영
+- height: "100%" 필수 (슬라이드 영역 전체 사용)
+"""
+    else:
+        # Create mode: generate from content data
+        user_prompt = f"""
 [슬라이드]
 slide_id: {slide["slide_id"]}
 type: {slide["type"]}

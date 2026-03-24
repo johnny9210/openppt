@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useRef, type KeyboardEvent } from "react";
-import { streamGenerate } from "@/lib/api";
+import { useState, useRef, type KeyboardEvent, type DragEvent } from "react";
+import { streamGenerate, streamEdit } from "@/lib/api";
 import { useStore } from "@/lib/store";
+
+interface EditTarget {
+  slideId: string;
+  label: string;
+}
 
 export default function ChatInput() {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<string>("대기 중");
   const [eventCount, setEventCount] = useState(0);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
+    sessionId,
     isGenerating,
     setIsGenerating,
     setSessionId,
@@ -21,21 +29,52 @@ export default function ChatInput() {
     resetProgress,
   } = useStore();
 
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const slideId = e.dataTransfer.getData("slide_id");
+    const slideLabel = e.dataTransfer.getData("slide_label");
+    if (slideId) {
+      setEditTarget({ slideId, label: slideLabel || slideId });
+      textareaRef.current?.focus();
+    }
+  };
+
   const handleSubmit = async () => {
     if (!input.trim() || isGenerating) return;
 
     const request = input.trim();
     setInput("");
-    setStatus("API 호출 시작...");
+    setStatus(editTarget ? `슬라이드 편집 시작: ${editTarget.label}` : "API 호출 시작...");
     setEventCount(0);
     resetProgress();
     setIsGenerating(true);
+
+    const currentEditTarget = editTarget;
+    setEditTarget(null);
 
     try {
       let count = 0;
       let receivedCode = false;
       let receivedSpec = false;
-      for await (const event of streamGenerate(request)) {
+
+      // Choose stream based on edit target
+      const stream =
+        currentEditTarget && sessionId
+          ? streamEdit(sessionId, request, currentEditTarget.slideId)
+          : streamGenerate(request);
+
+      for await (const event of stream) {
         count++;
         setEventCount(count);
         const data = event.data as Record<string, unknown>;
@@ -110,18 +149,58 @@ export default function ChatInput() {
   };
 
   return (
-    <div className="p-4 border-t border-gray-800">
+    <div
+      className={`p-4 border-t transition-colors ${
+        isDragOver
+          ? "border-blue-500 bg-blue-950/30"
+          : "border-gray-800"
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Debug status */}
       <div className="mb-2 p-2 bg-gray-800 rounded text-xs text-gray-300 font-mono">
         상태: {status} | 이벤트: {eventCount}개
       </div>
+
+      {/* Edit target chip */}
+      {editTarget && (
+        <div className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-medium">
+            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z" />
+            </svg>
+            {editTarget.label} 편집
+            <button
+              onClick={() => setEditTarget(null)}
+              className="ml-1 hover:text-white"
+            >
+              ✕
+            </button>
+          </span>
+          <span className="text-xs text-gray-500">수정 내용을 입력하세요</span>
+        </div>
+      )}
+
+      {/* Drop zone hint */}
+      {isDragOver && (
+        <div className="mb-2 py-3 border-2 border-dashed border-blue-500/50 rounded-lg text-center text-sm text-blue-400">
+          여기에 드롭하여 슬라이드 편집
+        </div>
+      )}
+
       <div className="flex gap-2">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="PPT를 설명해주세요... (예: 2024년 4분기 성과 보고서)"
+          placeholder={
+            editTarget
+              ? `${editTarget.label} 수정 요청을 입력하세요...`
+              : "PPT를 설명해주세요... (예: 2024년 4분기 성과 보고서)"
+          }
           rows={3}
           className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500 placeholder-gray-500"
           disabled={isGenerating}
@@ -129,9 +208,13 @@ export default function ChatInput() {
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || isGenerating}
-          className="px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+          className={`px-4 rounded-lg text-sm font-medium transition-colors ${
+            editTarget
+              ? "bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed"
+          }`}
         >
-          {isGenerating ? "..." : "생성"}
+          {isGenerating ? "..." : editTarget ? "수정" : "생성"}
         </button>
       </div>
     </div>

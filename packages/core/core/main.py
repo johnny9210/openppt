@@ -146,43 +146,70 @@ async def edit_slide(request: EditRequest):
 
     current_state = pipeline.get_state(config)
     if not current_state.values:
-        raise HTTPException(status_code=404, detail="Session not found")
+        yield ServerSentEvent(
+            raw_data=json.dumps({
+                "error": "세션이 만료되었습니다. PPT를 다시 생성해주세요.",
+                "detail": "Session not found",
+            }),
+            event="error",
+        )
+        return
 
     yield ServerSentEvent(
         raw_data=json.dumps({"session_id": request.session_id, "status": "editing"}),
         event="session",
     )
 
-    async for mode, chunk in pipeline.astream(
-        {
-            "user_request": request.user_request,
-            "mode": "edit",
-            "target_slide_id": request.target_slide_id,
-        },
-        config,
-        stream_mode=["updates", "custom"],
-    ):
-        if mode == "custom":
-            yield ServerSentEvent(
-                raw_data=json.dumps(chunk, ensure_ascii=False),
-                event="progress",
-            )
-        elif mode == "updates":
-            for node_name, update in chunk.items():
-                if "react_code" in update:
-                    yield ServerSentEvent(
-                        raw_data=json.dumps({"react_code": update["react_code"]}, ensure_ascii=False),
-                        event="code",
-                    )
+    try:
+        async for mode, chunk in pipeline.astream(
+            {
+                "user_request": request.user_request,
+                "mode": "edit",
+                "target_slide_id": request.target_slide_id,
+                "revision_count": 0,
+                "validation_result": {},
+            },
+            config,
+            stream_mode=["updates", "custom"],
+        ):
+            if mode == "custom":
+                yield ServerSentEvent(
+                    raw_data=json.dumps(chunk, ensure_ascii=False),
+                    event="progress",
+                )
+            elif mode == "updates":
+                for node_name, update in chunk.items():
+                    if not update or not isinstance(update, dict):
+                        continue
+                    if "generated_slides" in update and update["generated_slides"]:
+                        for slide_data in update["generated_slides"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(slide_data, ensure_ascii=False),
+                                event="slide",
+                            )
+                    if "react_code" in update and update["react_code"]:
+                        yield ServerSentEvent(
+                            raw_data=json.dumps({"react_code": update["react_code"]}, ensure_ascii=False),
+                            event="code",
+                        )
 
-    final_state = pipeline.get_state(config)
-    yield ServerSentEvent(
-        raw_data=json.dumps({
-            "status": "completed",
-            "react_code": final_state.values.get("react_code", ""),
-        }, ensure_ascii=False),
-        event="complete",
-    )
+        final_state = pipeline.get_state(config)
+        yield ServerSentEvent(
+            raw_data=json.dumps({
+                "status": "completed",
+                "react_code": final_state.values.get("react_code", ""),
+            }, ensure_ascii=False),
+            event="complete",
+        )
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"Edit pipeline error:\n{tb}", flush=True)
+        yield ServerSentEvent(
+            raw_data=json.dumps({"error": str(e), "traceback": tb}),
+            event="error",
+        )
 
 
 @app.post("/api/human-review")

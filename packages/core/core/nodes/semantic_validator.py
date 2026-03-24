@@ -132,20 +132,26 @@ async def _verify_all_slides(
     slides: list[dict],
     react_code: str,
 ) -> tuple[bool, list[dict]]:
-    """Verify all slides. Returns (passed, failed_slides)."""
-    failed_slides = []
+    """Verify all slides in parallel (max 3 concurrent). Returns (passed, failed_slides)."""
+    import asyncio
 
-    for slide in slides:
-        generated = extract_slide_component(react_code, slide["slide_id"], slide["type"])
-        result = await _verify_slide(slide, generated)
+    semaphore = asyncio.Semaphore(3)
 
-        if not result.get("pass", False):
-            failed_slides.append({
-                "slide_id": slide["slide_id"],
-                "slide_type": slide["type"],
-                "issues": result.get("issues", []),
-                "summary": result.get("summary", ""),
-            })
+    async def _check_one(slide: dict) -> dict | None:
+        async with semaphore:
+            generated = extract_slide_component(react_code, slide["slide_id"], slide["type"])
+            result = await _verify_slide(slide, generated)
+            if not result.get("pass", False):
+                return {
+                    "slide_id": slide["slide_id"],
+                    "slide_type": slide["type"],
+                    "issues": result.get("issues", []),
+                    "summary": result.get("summary", ""),
+                }
+            return None
+
+    results = await asyncio.gather(*[_check_one(s) for s in slides])
+    failed_slides = [r for r in results if r is not None]
 
     return len(failed_slides) == 0, failed_slides
 
@@ -184,6 +190,12 @@ async def semantic_validator(state: PPTState) -> dict:
     react_code = state["react_code"]
 
     slides = slide_spec["ppt_state"]["presentation"]["slides"]
+
+    # In edit mode, only verify the target slide — other slides may have
+    # intentionally hardcoded values from previous edits
+    if state.get("mode") == "edit" and state.get("target_slide_id"):
+        target_id = state["target_slide_id"]
+        slides = [s for s in slides if s["slide_id"] == target_id]
 
     # Verify each slide's content is properly reflected
     passed, failed = await _verify_all_slides(slides, react_code)
