@@ -8,7 +8,7 @@ import re
 from core.state import PPTState
 
 
-TEMPLATE_HEADER = '''import {{ useState }} from "react";
+TEMPLATE_HEADER = '''import {{ useState, useEffect }} from "react";
 import {{
   BarChart, Bar, Cell, LineChart, Line, PieChart, Pie,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -34,6 +34,46 @@ TEMPLATE_ROOT = '''
 export default function Presentation({ spec }) {
   const [current, setCurrent] = useState(0);
   const slides = spec.ppt_state.presentation.slides;
+  const total = slides.length;
+
+  const goTo = (i) => {
+    const next = Math.max(0, Math.min(total - 1, i));
+    setCurrent(next);
+    try { window.parent.postMessage({ type: "slideChange", index: next }, "*"); } catch(e) {}
+  };
+  const goPrev = () => setCurrent((c) => { const n = Math.max(0, c - 1); try { window.parent.postMessage({ type: "slideChange", index: n }, "*"); } catch(e) {} return n; });
+  const goNext = () => setCurrent((c) => { const n = Math.min(total - 1, c + 1); try { window.parent.postMessage({ type: "slideChange", index: n }, "*"); } catch(e) {} return n; });
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "ArrowRight") goNext();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [total]);
+
+  // Register goTo on global bridge for parent postMessage
+  useEffect(() => {
+    window.__goToSlide = goTo;
+    return () => { window.__goToSlide = null; };
+  });
+
+  const arrowBtn = (direction, onClick) => (
+    <button onClick={onClick} style={{
+      position: "absolute", top: "50%", transform: "translateY(-50%)",
+      [direction === "left" ? "left" : "right"]: 12,
+      width: 36, height: 36, borderRadius: "50%", border: "none",
+      background: "rgba(255,255,255,0.1)", color: "#fff",
+      fontSize: 18, cursor: "pointer", display: "flex",
+      alignItems: "center", justifyContent: "center",
+      backdropFilter: "blur(4px)", transition: "background 0.2s",
+      zIndex: 10,
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+    >{direction === "left" ? "\\u2039" : "\\u203A"}</button>
+  );
 
   return (
     <div style={{
@@ -41,9 +81,10 @@ export default function Presentation({ spec }) {
       display: "flex", flexDirection: "column"
     }}>
       <div style={{
-        flex: 1, display: "flex",
+        flex: 1, display: "flex", position: "relative",
         alignItems: "center", justifyContent: "center", padding: 32
       }}>
+        {current > 0 && arrowBtn("left", goPrev)}
         <div style={{
           width: "100%", maxWidth: 900,
           aspectRatio: "16/9", borderRadius: 16, overflow: "hidden",
@@ -51,15 +92,22 @@ export default function Presentation({ spec }) {
         }}>
           <SlideFactory slide={slides[current]} />
         </div>
+        {current < total - 1 && arrowBtn("right", goNext)}
       </div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, paddingBottom: 16 }}>
-        {slides.map((_, i) => (
-          <button key={i} onClick={() => setCurrent(i)} style={{
-            width: 8, height: 8, borderRadius: "50%", border: "none",
-            background: i === current ? THEME.accent : "rgba(255,255,255,0.2)",
-            cursor: "pointer"
-          }} />
-        ))}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, paddingBottom: 16 }}>
+        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+          {current + 1} / {total}
+        </span>
+        <div style={{ display: "flex", gap: 6 }}>
+          {slides.map((_, i) => (
+            <button key={i} onClick={() => goTo(i)} style={{
+              width: i === current ? 24 : 10, height: 10, borderRadius: 5,
+              border: "none", transition: "all 0.2s",
+              background: i === current ? THEME.accent : "rgba(255,255,255,0.2)",
+              cursor: "pointer"
+            }} />
+          ))}
+        </div>
       </div>
     </div>
   );

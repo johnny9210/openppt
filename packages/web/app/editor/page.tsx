@@ -80,7 +80,7 @@ export default function EditorPage() {
           {/* Content */}
           <div className="flex-1 overflow-hidden">
             {activeTab === "preview" ? (
-              <SlidePreview code={reactCode} spec={slideSpec} />
+              <SlidePreview code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
             ) : (
               <CodeViewer code={reactCode} slideCodes={slideCodes} />
             )}

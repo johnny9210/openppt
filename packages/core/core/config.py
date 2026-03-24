@@ -32,7 +32,7 @@ GOOGLE_AI_STUDIO_KEY = os.getenv(
     "GOOGLE_AI_STUDIO_KEY", ""
 )
 GEMINI_IMAGE_MODEL = os.getenv(
-    "GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"
+    "GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview"
 )
 
 # Pipeline Settings

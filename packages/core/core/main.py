@@ -6,9 +6,13 @@ Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
 """
 
 import json
+import logging
 import uuid
 
 from fastapi import FastAPI, HTTPException
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
@@ -61,6 +65,7 @@ async def generate_ppt(request: GenerateRequest):
         "error_log": [],
     }
 
+    logger.info("[SSE] Session started: %s", thread_id)
     yield ServerSentEvent(
         raw_data=json.dumps({"session_id": thread_id, "status": "started"}),
         event="session",
@@ -81,6 +86,7 @@ async def generate_ppt(request: GenerateRequest):
                 for node_name, update in chunk.items():
                     if not update or not isinstance(update, dict):
                         continue
+                    logger.info("[SSE] Node '%s' update keys: %s", node_name, list(update.keys()))
 
                     # Phase 1: Scoping result
                     if "research_brief" in update and update["research_brief"]:
@@ -125,7 +131,7 @@ async def generate_ppt(request: GenerateRequest):
                                 event="slide",
                             )
 
-                    # Phase 3: Assembled code
+                    # Phase 3: Assembled code + slide_spec
                     if "react_code" in update and update["react_code"]:
                         yield ServerSentEvent(
                             raw_data=json.dumps(
@@ -133,6 +139,15 @@ async def generate_ppt(request: GenerateRequest):
                                 ensure_ascii=False,
                             ),
                             event="code",
+                        )
+                    if "slide_spec" in update and update["slide_spec"]:
+                        print(f"[SSE] slide_spec emitted: {len(update['slide_spec'].get('ppt_state', {}).get('presentation', {}).get('slides', []))} slides", flush=True)
+                        yield ServerSentEvent(
+                            raw_data=json.dumps(
+                                {"slide_spec": update["slide_spec"]},
+                                ensure_ascii=False,
+                            ),
+                            event="state",
                         )
 
                     # Phase 4: Validation
@@ -146,11 +161,16 @@ async def generate_ppt(request: GenerateRequest):
 
         # Final state
         final_state = pipeline.get_state(config)
+        final_slide_spec = final_state.values.get("slide_spec", {})
+        print(f"[COMPLETE] react_code: {len(final_state.values.get('react_code', ''))} chars", flush=True)
+        print(f"[COMPLETE] slide_spec slides: {len(final_slide_spec.get('ppt_state', {}).get('presentation', {}).get('slides', []))}", flush=True)
+        print(f"[COMPLETE] revision_count: {final_state.values.get('revision_count', 0)}", flush=True)
         yield ServerSentEvent(
             raw_data=json.dumps(
                 {
                     "status": "completed",
                     "react_code": final_state.values.get("react_code", ""),
+                    "slide_spec": final_slide_spec,
                     "research_brief": final_state.values.get("research_brief", {}),
                     "validation_result": final_state.values.get(
                         "validation_result", {}

@@ -74,14 +74,13 @@ async def design_generator(state: DesignGeneratorState) -> dict:
 
     prompt = _build_design_prompt(slide, brief)
 
-    logger.info("Generating design for %s (%s)", slide["slide_id"], slide["type"])
+    logger.info("[DesignGen] START %s (%s) - prompt: %d chars", slide["slide_id"], slide["type"], len(prompt))
     image_b64 = await generate_slide_image(prompt, aspect_ratio="16:9")
 
-    if not image_b64:
-        logger.warning(
-            "Design generation failed for %s, continuing without image",
-            slide["slide_id"],
-        )
+    if image_b64:
+        logger.info("[DesignGen] SUCCESS %s - image size: %d bytes", slide["slide_id"], len(image_b64))
+    else:
+        logger.warning("[DesignGen] FAILED %s - no image, continuing without", slide["slide_id"])
 
     return {
         "slide_designs": [{

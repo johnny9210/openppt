@@ -47,9 +47,11 @@ async def _call_runtime_validator(code: str, expected_slide_count: int, spec: di
 
 async def runtime_validator(state: PPTState) -> dict:
     """Validate React code runtime via validator service sandbox."""
-    expected_slides = len(
-        state["slide_spec"]["ppt_state"]["presentation"]["slides"]
-    )
+    spec_slides = state["slide_spec"]["ppt_state"]["presentation"]["slides"]
+    expected_slides = len(spec_slides)
+    logger.info("[RuntimeValidator] expected_slides=%d, slide_ids=%s",
+                expected_slides, [s.get("slide_id") for s in spec_slides])
+    logger.info("[RuntimeValidator] react_code length=%d", len(state.get("react_code", "")))
 
     try:
         result = await _call_runtime_validator(

@@ -9,6 +9,7 @@ Uses LangGraph v1.0.10 API:
 - get_stream_writer for SSE progress
 """
 
+import logging
 from typing import Literal
 
 from langgraph.graph import StateGraph, START, END
@@ -18,6 +19,8 @@ from langgraph.config import get_stream_writer
 
 from core.state import PPTState
 from core.config import MAX_REVISIONS
+
+logger = logging.getLogger(__name__)
 
 # Import nodes
 from core.nodes.scoping import scoping
@@ -154,6 +157,12 @@ def progress_parallel_dispatcher(state: PPTState) -> Command:
 
 async def progress_code_synthesizer(state: PPTState) -> dict:
     writer = get_stream_writer()
+    designs = state.get("slide_designs", [])
+    contents = state.get("slide_contents", [])
+    logger.info("[Pipeline] code_synthesizer START - designs: %d, contents: %d, revision: %d",
+                len(designs), len(contents), state.get("revision_count", 0))
+    for d in designs:
+        logger.info("[Pipeline]   design: %s has_image=%s", d["slide_id"], bool(d.get("image_b64")))
     writer({
         "phase": 3,
         "step": "code_synthesizer",
@@ -161,6 +170,7 @@ async def progress_code_synthesizer(state: PPTState) -> dict:
     })
     result = await code_synthesizer(state)
     count = len(result.get("generated_slides", []))
+    logger.info("[Pipeline] code_synthesizer DONE - generated %d slides", count)
     writer({
         "phase": 3,
         "step": "code_synthesizer",
@@ -172,8 +182,16 @@ async def progress_code_synthesizer(state: PPTState) -> dict:
 
 def progress_code_assembly(state: PPTState) -> dict:
     writer = get_stream_writer()
+    logger.info("[Pipeline] code_assembly START - generated_slides: %d, slide_contents: %d",
+                len(state.get("generated_slides", [])), len(state.get("slide_contents", [])))
     writer({"phase": 3, "step": "code_assembly", "message": "코드 조립 중..."})
     result = code_assembly(state)
+    spec_slides = result.get("slide_spec", {}).get("ppt_state", {}).get("presentation", {}).get("slides", [])
+    logger.info("[Pipeline] code_assembly DONE - react_code: %d chars, spec slides: %d",
+                len(result.get("react_code", "")), len(spec_slides))
+    for s in spec_slides:
+        logger.info("[Pipeline]   spec slide: %s type=%s content_keys=%s",
+                    s.get("slide_id"), s.get("type"), list(s.get("content", {}).keys()))
     writer({"phase": 3, "step": "code_assembly", "message": "코드 조립 완료", "done": True})
     return result
 

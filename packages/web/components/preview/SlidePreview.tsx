@@ -2,10 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
+interface SlideCode {
+  slide_id: string;
+  type: string;
+  code: string;
+}
+
 interface SlidePreviewProps {
   code: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   spec?: Record<string, any> | null;
+  slideCodes?: Record<string, SlideCode>;
 }
 
 /**
@@ -18,9 +25,21 @@ interface SlidePreviewProps {
  *   use Recharts 2.x API which is backwards-compatible for common charts)
  * - @babel/standalone for in-browser JSX transpilation
  */
-export default function SlidePreview({ code, spec }: SlidePreviewProps) {
+const TYPE_LABELS: Record<string, string> = {
+  cover: "표지",
+  table_of_contents: "목차",
+  key_points: "핵심 포인트",
+  data_visualization: "데이터 시각화",
+  risk_analysis: "리스크 분석",
+  action_plan: "실행 계획",
+};
+
+export default function SlidePreview({ code, spec, slideCodes }: SlidePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeSlide, setActiveSlide] = useState<number>(0);
+
+  const slideIds = slideCodes ? Object.keys(slideCodes).sort() : [];
 
   useEffect(() => {
     if (!code || !iframeRef.current) return;
@@ -46,6 +65,25 @@ export default function SlidePreview({ code, spec }: SlidePreviewProps) {
     };
   }, [code, spec]);
 
+  // Listen for slide change messages from iframe
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === "slideChange") {
+        setActiveSlide(e.data.index);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  const goToSlide = (index: number) => {
+    setActiveSlide(index);
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "goToSlide", index },
+      "*"
+    );
+  };
+
   if (!code) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500">
@@ -55,21 +93,58 @@ export default function SlidePreview({ code, spec }: SlidePreviewProps) {
   }
 
   return (
-    <div className="h-full flex items-center justify-center bg-gray-950 p-8">
-      <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-2xl border border-gray-800">
-        {isLoading && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gray-900 text-gray-400 gap-3">
-            <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-400 rounded-full animate-spin" />
-            <p className="text-sm">프리뷰 로딩 중...</p>
-            <p className="text-xs text-gray-600">외부 라이브러리를 불러오고 있습니다</p>
+    <div className="flex h-full">
+      {/* Left: Slide list panel */}
+      {slideIds.length > 0 && (
+        <div className="w-[200px] border-r border-gray-800 flex flex-col bg-gray-950">
+          <div className="px-3 py-2 text-xs text-gray-500 font-medium uppercase tracking-wider border-b border-gray-800">
+            슬라이드
           </div>
-        )}
-        <iframe
-          ref={iframeRef}
-          sandbox="allow-scripts"
-          className="w-full h-full border-0"
-          title="Slide Preview"
-        />
+          <div className="flex-1 overflow-y-auto py-1">
+            {slideIds.map((id, i) => {
+              const slide = slideCodes![id];
+              const num = id.replace("slide_", "");
+              const label = TYPE_LABELS[slide.type] || slide.type;
+              return (
+                <button
+                  key={id}
+                  onClick={() => goToSlide(i)}
+                  className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
+                    activeSlide === i
+                      ? "bg-blue-600/20 text-blue-300"
+                      : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"
+                  }`}
+                >
+                  <span className="w-5 h-5 flex-shrink-0 rounded bg-gray-800 flex items-center justify-center text-[10px] text-gray-500">
+                    {i + 1}
+                  </span>
+                  <div className="truncate">
+                    <span className="text-gray-500">{num}.</span> {label}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Right: Preview */}
+      <div className="flex-1 flex items-center justify-center bg-gray-950 p-8">
+        <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+          {isLoading && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gray-900 text-gray-400 gap-3">
+              <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-400 rounded-full animate-spin" />
+              <p className="text-sm">프리뷰 로딩 중...</p>
+              <p className="text-xs text-gray-600">외부 라이브러리를 불러오고 있습니다</p>
+            </div>
+          )}
+          <iframe
+            ref={iframeRef}
+            sandbox="allow-scripts"
+            className="w-full h-full border-0"
+            title="Slide Preview"
+          />
+        </div>
       </div>
     </div>
   );
@@ -240,6 +315,14 @@ function buildPreviewHTML(code: string, spec: Record<string, any>): string {
   <div id="error"></div>
 
   <script>
+    // --- Parent ↔ Iframe Communication Bridge ---
+    window.__goToSlide = null;
+    window.addEventListener("message", function(e) {
+      if (e.data && e.data.type === "goToSlide" && typeof e.data.index === "number") {
+        if (window.__goToSlide) window.__goToSlide(e.data.index);
+      }
+    });
+
     // --- CDN Script Loader with Error Handling ---
     var __cdnErrors = [];
     var __scriptsLoaded = { react: false, reactDom: false, propTypes: false, recharts: false, babel: false };
