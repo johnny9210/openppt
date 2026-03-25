@@ -161,7 +161,7 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
 
   if (!code) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-gray-400">
         <p>코드를 생성하면 여기에 프리뷰가 표시됩니다.</p>
       </div>
     );
@@ -171,8 +171,8 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
     <div className="flex h-full">
       {/* Left: Slide list panel */}
       {slideIds.length > 0 && (
-        <div className="w-[200px] border-r border-gray-800 flex flex-col bg-gray-950">
-          <div className="px-3 py-2 text-xs text-gray-500 font-medium uppercase tracking-wider border-b border-gray-800">
+        <div className="w-[200px] border-r border-blue-200 flex flex-col bg-white/80">
+          <div className="px-3 py-2 text-xs text-gray-400 font-medium uppercase tracking-wider border-b border-blue-200">
             슬라이드
           </div>
           <div className="flex-1 overflow-y-auto py-1">
@@ -186,15 +186,15 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
                   onClick={() => goToSlide(i)}
                   className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
                     activeSlide === i
-                      ? "bg-blue-600/20 text-blue-300"
-                      : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"
+                      ? "bg-blue-100 text-blue-600"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-blue-50"
                   }`}
                 >
-                  <span className="w-5 h-5 flex-shrink-0 rounded bg-gray-800 flex items-center justify-center text-[10px] text-gray-500">
+                  <span className="w-5 h-5 flex-shrink-0 rounded bg-blue-100 flex items-center justify-center text-[10px] text-blue-400">
                     {i + 1}
                   </span>
                   <div className="truncate">
-                    <span className="text-gray-500">{num}.</span> {label}
+                    <span className="text-gray-400">{num}.</span> {label}
                   </div>
                 </button>
               );
@@ -204,13 +204,13 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
       )}
 
       {/* Right: Preview */}
-      <div className="flex-1 flex items-center justify-center bg-gray-200 p-8">
-        <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-2xl border border-gray-300">
+      <div className="flex-1 flex items-center justify-center bg-blue-50 p-8">
+        <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-lg border border-blue-200">
           {isLoading && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gray-900 text-gray-400 gap-3">
-              <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-400 rounded-full animate-spin" />
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 text-gray-500 gap-3">
+              <div className="w-8 h-8 border-2 border-blue-200 border-t-sky-500 rounded-full animate-spin" />
               <p className="text-sm">프리뷰 로딩 중...</p>
-              <p className="text-xs text-gray-600">외부 라이브러리를 불러오고 있습니다</p>
+              <p className="text-xs text-gray-400">외부 라이브러리를 불러오고 있습니다</p>
             </div>
           )}
           <iframe

@@ -60,11 +60,11 @@ export default function EditorPage() {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-gray-800">
-        <h1 className="text-lg font-semibold text-gray-200">PPT Code Generator</h1>
+      <header className="flex items-center justify-between px-6 py-3 border-b border-blue-200 bg-white/70 backdrop-blur-sm">
+        <h1 className="text-lg font-semibold text-gray-700">PPT Code Generator</h1>
         <div className="flex items-center gap-4">
           {slideCount > 0 && (
-            <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-400">
+            <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-500">
               {slideCount}개 슬라이드
             </span>
           )}
@@ -72,8 +72,8 @@ export default function EditorPage() {
             <span
               className={`text-xs px-2 py-1 rounded ${
                 validationResult.status === "pass"
-                  ? "bg-green-900 text-green-300"
-                  : "bg-red-900 text-red-300"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-red-100 text-red-600"
               }`}
             >
               {validationResult.layer}: {validationResult.status}
@@ -83,7 +83,7 @@ export default function EditorPage() {
             <button
               onClick={handleDownloadPptx}
               disabled={isExporting}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-500 hover:bg-blue-400 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isExporting ? (
                 <>
@@ -112,7 +112,7 @@ export default function EditorPage() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Chat + Input */}
-        <div className="w-[400px] flex flex-col border-r border-gray-800">
+        <div className="w-[400px] flex flex-col border-r border-blue-200 bg-white/50">
           <div className="flex-1 overflow-y-auto p-4">
             {/* Chat history will be here */}
           </div>
@@ -122,13 +122,13 @@ export default function EditorPage() {
         {/* Right: Preview/Code */}
         <div className="flex-1 flex flex-col">
           {/* Tabs */}
-          <div className="flex border-b border-gray-800">
+          <div className="flex border-b border-blue-200 bg-white/70">
             <button
               onClick={() => setActiveTab("preview")}
               className={`px-4 py-2 text-sm font-medium ${
                 activeTab === "preview"
-                  ? "text-blue-400 border-b-2 border-blue-400"
-                  : "text-gray-500 hover:text-gray-300"
+                  ? "text-blue-500 border-b-2 border-blue-400"
+                  : "text-gray-400 hover:text-gray-500"
               }`}
             >
               Preview
@@ -137,8 +137,8 @@ export default function EditorPage() {
               onClick={() => setActiveTab("code")}
               className={`px-4 py-2 text-sm font-medium ${
                 activeTab === "code"
-                  ? "text-blue-400 border-b-2 border-blue-400"
-                  : "text-gray-500 hover:text-gray-300"
+                  ? "text-blue-500 border-b-2 border-blue-400"
+                  : "text-gray-400 hover:text-gray-500"
               }`}
             >
               Code

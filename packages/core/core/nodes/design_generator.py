@@ -22,428 +22,352 @@ logger = logging.getLogger(__name__)
 VISUAL_IDENTITY = """## Visual Identity (MUST apply to every slide)
 - Aspect ratio: 16:9 widescreen (960×540 proportions)
 - Background: Clean light gray (#F5F7FA), NOT white, NOT dark
-- Typography: Bold modern sans-serif (Pretendard / Noto Sans KR style)
-  - Titles: Extra-bold, dark charcoal (#1A202C), large (40-52px equivalent)
-  - Body: Regular weight, muted gray (#64748B), 14-16px equivalent
-  - Accents: {primary_color} for emphasis, {accent_color} for secondary highlights
-- Card elements: Pure white (#FFFFFF), border-radius 16px, subtle shadow (0 2px 8px rgba(0,0,0,0.06)), thin border (#E2E8F0)
-- Icon badges: Circular, 50-60px, solid color fill ({primary_color} or {accent_color}), white icon/emoji inside
-- Accent bar: Thin colored line (width 48px, height 4px) centered below titles using {primary_color}
-- Decorations: Subtle geometric network pattern (thin lines + small dots) in top-right corner, opacity 10-15%
+- Card elements: Pure white (#FFFFFF), border-radius 16px, subtle shadow, thin border (#E2E8F0)
+- Icon badges: Circular, 50-60px, solid color fill ({primary_color} or {accent_color}), white emoji inside
+- Accent bar: Thin colored line (width 48px, height 4px) using {primary_color}
+- Decorations: Subtle geometric network pattern (thin lines + small dots), opacity 10-15%
 - Overall mood: McKinsey consulting deck meets Apple Keynote — clean, confident, premium
 
-## Whitespace & Density Rules
-- Maximum 6 text elements visible on a single slide
-- At least 30% of slide area must be empty whitespace
-- Group items into 3-4 categories if more than 6 exist — less is more
-- Generous padding inside cards (24-28px) and between cards (20px gaps)
-- Title area: Leave 48px+ below title before content starts
+## CRITICAL: Text-Free Image Rule
+This image will be used as a BACKGROUND with text overlaid by code later.
+- DO NOT render any Korean or English text in the image
+- Leave title areas as clean blank zones (light background, no text)
+- Leave body/description areas empty within cards and containers
+- Cards should show visual structure (borders, shadows, icons) but NO text labels
+- Icon badges may contain emoji symbols but NO text words
+- The image provides ONLY visual structure, decorations, colors, and layout — ALL text comes from code overlay
 
-## Text Rendering Rules
-- Korean text MUST be perfectly legible, crisp, properly kerned
-- Use bold sans-serif for all Korean text (Pretendard or Noto Sans KR weight 700+)
-- Keep total visible text under 80 words per slide
-- Enclose exact text to render in double quotes within the prompt
+## Whitespace & Density Rules
+- Maximum 6 visual elements per slide (cards, badges, decorations)
+- At least 30% of slide area must be empty for text overlay space
+- Generous padding inside cards (24-28px) and between cards (20px gaps)
+- Title zone: Leave clean open area at top 15-25% of slide for title overlay
 
 ## DO NOT (Negative Instructions)
+- NO text of any kind (Korean, English, numbers) — except emoji symbols in icon badges
 - NO dark mode, NO glassmorphism, NO gradient backgrounds
 - NO 3D effects, NO extreme drop shadows, NO bevels
-- NO clip-art style graphics or cartoonish icons
 - NO neon or overly saturated colors
-- NO text smaller than 12px equivalent
-- NO overlapping text or cramped layouts
-- NO tag-spam modifiers like "4k, masterpiece, trending on artstation"
-- NO more than 2 font sizes per card (title + body only)"""
+- NO overcrowded layouts"""
 
 
 # ── Type-specific prompt templates (ICS framework) ──────────
 
 
 COVER_PROMPT = """## Image Type
-Professional presentation COVER slide — the first impression slide.
+Professional presentation COVER slide — visual structure only (no text).
 
-## Content
-- Title text (large, bold, left-aligned): "{topic}"
-- Subtitle: Based on key points below
-- Bottom-left: Presenter info + date in small gray text
-- Key points for context: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- LEFT 58%: Title block
-  - Title: Extra-bold, 44-52px, dark charcoal, left-aligned, max 2 lines
-  - Accent bar (48×4px, {primary_color}) directly below the title
-  - Subtitle: 18px, muted gray, 1-2 lines, left-aligned
-  - Presenter/date: 13px, bottom-left, light gray
+- LEFT 58%: Blank title zone (clean open area for text overlay)
+  - Large blank area at top-left for title overlay
+  - Accent bar (48×4px, {primary_color}) as a visual separator
+  - Clean space below for subtitle overlay
+  - Small blank zone at bottom-left for presenter info overlay
 - RIGHT 42%: Thematic visual illustration
   - A cohesive icon composition related to the topic (3-5 connected icons)
   - Icons: Flat style, colorful but harmonious, connected by thin arrows/lines
   - A central icon badge (larger, circular, {primary_color} background) as the focal point
   - Surrounding smaller icons in white cards with subtle shadows
-- Background: Light decorative curves/shapes in top-right area (very subtle, {accent_color} at 8% opacity)
+- Background: Light decorative curves/shapes in top-right area ({accent_color} at 8% opacity)
 
 {visual_identity}
 
-Generate this cover slide image now."""
+Generate this cover slide visual structure (NO TEXT) now."""
 
 
 TOC_PROMPT = """## Image Type
-Professional TABLE OF CONTENTS slide — navigation overview.
+Professional TABLE OF CONTENTS slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Items to display: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Items in ZIGZAG/STAGGERED layout:
-  - Vertical timeline spine running down center with numbered circles
-  - Odd items (1, 3, 5): Card LEFT of spine
-  - Even items (2, 4, 6): Card RIGHT of spine
-  - Number circles: 36px, solid {primary_color} (odd) / {accent_color} (even), white number
-- Each card: White rounded rectangle with icon + bold title + gray description
+- Top: Clean blank zone for title overlay, accent bar below
+- ZIGZAG/STAGGERED layout:
+  - Vertical timeline spine down center with numbered circles (numbers as digits only)
+  - Odd items: Blank card LEFT of spine
+  - Even items: Blank card RIGHT of spine
+  - Number circles: 36px, solid {primary_color} (odd) / {accent_color} (even)
+- Each card: White rounded rectangle with icon badge — NO text inside cards
 - Cards connected to number circles by thin lines
 
 {visual_identity}
 
-Generate this table of contents slide image now."""
+Generate this table of contents visual structure (NO TEXT) now."""
 
 
 KEY_POINTS_PROMPT = """## Image Type
-Professional KEY POINTS slide — 2-4 main takeaways in card grid.
+Professional KEY POINTS slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Points to display: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Optional description line: 14px, muted gray, centered
-- 2×2 GRID of cards (or 1×2 / 1×3 depending on point count):
+- Top: Clean blank zone for title + description overlay, accent bar
+- 2×2 GRID of cards below:
   - Each card: White, rounded-16px, shadow, border
-  - LEFT inside card: Circular icon badge (56px, alternating {primary_color}/{accent_color})
-    - White emoji or flat icon inside
-  - RIGHT of icon: Bold title (17px, dark) + description (13px, gray) + optional metric
+  - LEFT inside card: Circular icon badge (56px, alternating {primary_color}/{accent_color}) with emoji
+  - RIGHT of icon: Blank area for title + description text overlay
   - Cards are uniform size, symmetric, evenly spaced with 20px gaps
-- Maximum 4 cards visible — if more points, group them
+- Maximum 4 cards visible
 
 {visual_identity}
 
-Generate this key points slide image now."""
+Generate this key points visual structure (NO TEXT) now."""
 
 
 DATA_VIZ_PROMPT = """## Image Type
-Professional DATA VISUALIZATION slide — chart + insights.
+Professional DATA VISUALIZATION slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Data and insights: {content_hints}
-- Layout emphasis: {design_direction}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
+Layout emphasis: {design_direction}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Description line below title: 14px, gray
-- CENTER: Clean chart visualization
-  - Chart type: Donut/pie chart with percentage labels OR bar chart with value labels
-  - Chart colors: {primary_color}, {accent_color}, #38A169, #F59E0B (harmonious palette)
-  - Each segment has value label and short description positioned clearly
-  - Generous inner radius for donut (clean, modern look)
-- BELOW or SIDE: Key stat callouts in small white cards (metric + label)
-- BOTTOM: Insight line in {primary_color}, bold, prefixed with 💡
-- Data labels must be large enough to read at a glance
+- Top: Clean blank zone for title overlay, accent bar
+- CENTER: Chart visual structure (shapes and colors only, NO labels/numbers)
+  - Chart placeholder: Donut/pie shape or bar chart shapes
+  - Chart colors: {primary_color}, {accent_color}, #38A169, #F59E0B
+  - Leave blank zones around chart for label overlays
+- SIDE/BELOW: Small white cards (blank) for stat callouts
+- BOTTOM: Blank zone for insight overlay
 
 {visual_identity}
 
-Generate this data visualization slide image now."""
+Generate this data visualization visual structure (NO TEXT) now."""
 
 
 ACTION_PLAN_PROMPT = """## Image Type
-Professional ACTION PLAN / ROADMAP slide — phased execution timeline.
+Professional ACTION PLAN slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Phases/steps: {content_hints}
-- Layout emphasis: {design_direction}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
+Layout emphasis: {design_direction}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
+- Top: Clean blank zone for title overlay, accent bar
 - VERTICAL TIMELINE flowing top to bottom:
-  - Thin vertical line on left side ({primary_color} to {accent_color} gradient)
-  - Numbered circles (36px) on the line as milestone markers
-    - Alternate {primary_color} and {accent_color}
-  - Each milestone → Card to the RIGHT:
-    - White rounded rectangle, shadow, border
-    - Bold phase title (e.g., "Phase 1: 기초 학습")
-    - Period/duration in small {accent_color} text
-    - Bullet points: • task items in gray
-  - A small rocket or target icon at the top of the timeline
-- Clear top-to-bottom visual flow, each phase distinct
+  - Thin vertical line on left ({primary_color} to {accent_color} gradient)
+  - Numbered circles (36px) as milestones (digits only, no text labels)
+  - Each milestone → Blank card to the RIGHT (white, rounded, shadow)
+  - Rocket/target icon at top of timeline
+- Clear top-to-bottom visual flow
 
 {visual_identity}
 
-Generate this action plan slide image now."""
+Generate this action plan visual structure (NO TEXT) now."""
 
 
 HERO_PROMPT = """## Image Type
-Professional HERO MESSAGE slide — single powerful statement.
+Professional HERO MESSAGE slide — visual structure only (no text).
 
-## Content
-- Main message: "{topic}"
-- Supporting context: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- The text IS the design — ultra minimal
-- CENTER: Main message in VERY large bold text (52-64px equivalent)
-  - Dark charcoal (#1A202C), centered vertically and horizontally
-  - If an accent word is specified, color it with {primary_color}
-  - Max 2 lines, generous line-height (1.2)
-- BELOW: Subtitle in 20px, muted gray, centered, max 1-2 lines
-- Background: Light #F5F7FA with a subtle oversized geometric shape behind text
-  - e.g., large circle or rounded rectangle at 3-5% opacity using {accent_color}
-- Extreme whitespace — let the message breathe
-- NO cards, NO icons, NO grids — pure typographic impact
+- Ultra minimal — mostly blank for large text overlay
+- CENTER: Large clean blank zone for text overlay (60% of slide)
+- Background: #F5F7FA with a subtle oversized geometric shape ({accent_color} at 3-5% opacity)
+- NO cards, NO icons, NO grids — pure empty canvas with subtle decoration
+- Extreme whitespace
 
 {visual_identity}
 
-Generate this hero message slide image now."""
+Generate this hero visual structure (NO TEXT) now."""
 
 
 QUOTE_PROMPT = """## Image Type
-Professional QUOTE slide — impactful citation or statement.
+Professional QUOTE slide — visual structure only (no text).
 
-## Content
-- Quote: Based on key points: {content_hints}
-- Topic context: "{topic}"
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Decorative large opening quotation mark (") in {accent_color}, 120px, opacity 15%, top-left area
-- Vertical accent bar: 4px wide × 60px tall, {primary_color}, centered above quote
-- QUOTE TEXT: 28-36px, bold, dark charcoal, centered, max width 650px, line-height 1.5
-- Attribution: "— Source name" in 16px, muted gray, centered below quote
-- Optional context line: 14px, muted gray, below attribution
-- Extreme whitespace — the quote is the only content
-- Warm, thoughtful, contemplative mood
+- Decorative large quotation mark (") in {accent_color}, 120px, opacity 15%, top-left
+- Vertical accent bar: 4px × 60px, {primary_color}, centered
+- Large blank zone in center for quote text overlay (max-width 650px area)
+- Blank zone below for attribution overlay
+- Extreme whitespace, warm contemplative mood
 
 {visual_identity}
 
-Generate this quote slide image now."""
+Generate this quote visual structure (NO TEXT) now."""
 
 
 ICON_GRID_PROMPT = """## Image Type
-Professional ICON GRID slide — 4-6 items in visual grid.
+Professional ICON GRID slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Items to display: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Description line: 14px, muted gray, centered
+- Top: Blank zone for title + description overlay, accent bar
 - GRID: 2×3 or 3×2 arrangement of cards
-  - Each card: White, rounded-16px, shadow, centered content
-  - TOP of card: Circular icon badge (56px)
-    - Alternating {primary_color}/{accent_color} backgrounds
-    - White emoji or flat icon inside
-  - MIDDLE: Bold label (16px, dark), centered
-  - BOTTOM: Short description (12px, gray), centered, max 2 lines
-- All cards identical size, symmetric spacing (20px gaps)
-- Grid centered on slide
+  - Each card: White, rounded-16px, shadow
+  - TOP of card: Circular icon badge (56px, alternating {primary_color}/{accent_color}) with emoji
+  - BELOW icon: Blank area for label + description overlay
+- All cards identical size, symmetric, 20px gaps
 
 {visual_identity}
 
-Generate this icon grid slide image now."""
+Generate this icon grid visual structure (NO TEXT) now."""
 
 
 PROCESS_FLOW_PROMPT = """## Image Type
-Professional PROCESS FLOW slide — step-by-step horizontal progression.
+Professional PROCESS FLOW slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Steps: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Description line if applicable: 14px, gray, centered
+- Top: Blank zone for title overlay, accent bar
 - HORIZONTAL FLOW: 3-5 step cards connected by arrows
-  - Each step: White rounded card (min-width 130px), shadow, border
-    - TOP: Circular number/icon badge (44px, alternating {primary_color}/{accent_color})
-    - MIDDLE: Bold step title (14px), centered
-    - BOTTOM: Description (11px, gray), centered, max 3 lines
-  - Between cards: Bold arrow "→" in {primary_color}, 24px
-  - Cards arranged LEFT→RIGHT in a single horizontal row
-  - Equal card sizes, symmetric spacing
-- The arrow flow is the KEY visual element — clear progression
+  - Each step: White rounded card, shadow, border
+  - TOP: Circular badge (44px, alternating {primary_color}/{accent_color}) with step emoji
+  - BELOW badge: Blank area for title + description overlay
+  - Between cards: Bold arrow → in {primary_color}
+- LEFT→RIGHT single row, equal card sizes
 
 {visual_identity}
 
-Generate this process flow slide image now."""
+Generate this process flow visual structure (NO TEXT) now."""
 
 
 COMPARISON_PROMPT = """## Image Type
-Professional COMPARISON slide — side-by-side contrast.
+Professional COMPARISON slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Comparison items: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold
-- TWO COLUMNS with 24px gap between them:
-  - LEFT COLUMN: "Before" / "Problem" / negative side
-    - Header: Red (#E53E3E) circle badge with ✕ icon + bold label
-    - White card with subtle warm tint (light red border-left)
-    - List items with ✕ marks in red
-  - RIGHT COLUMN: "After" / "Solution" / positive side
-    - Header: Green (#38A169) circle badge with ✓ icon + bold label
-    - White card with subtle cool tint (light green border-left)
-    - List items with ✓ marks in green
-- Both columns: Equal width, same card height, balanced visual weight
-- Clear visual contrast between left (negative) and right (positive)
+- Top: Blank zone for title overlay
+- TWO COLUMNS with 24px gap:
+  - LEFT: Red (#E53E3E) circle badge with ✕, warm-tinted card, blank list area
+  - RIGHT: Green (#38A169) circle badge with ✓, cool-tinted card, blank list area
+- Equal width, balanced visual weight, clear contrast
 
 {visual_identity}
 
-Generate this comparison slide image now."""
+Generate this comparison visual structure (NO TEXT) now."""
 
 
 THREE_COLUMN_PROMPT = """## Image Type
-Professional THREE COLUMN slide — three equal categories.
+Professional THREE COLUMN slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Columns: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Description line: 14px, gray, centered
-- THREE EQUAL COLUMNS (each ~30% width):
-  - Each column: Tall white card, rounded-16px, shadow, border
-  - TOP: Large circular icon (56px)
-    - Column 1: {primary_color}, Column 2: {accent_color}, Column 3: #38A169
-    - White emoji inside
-  - UPPER-MIDDLE: Bold title (17px, dark), centered
-  - CENTER: Description (13px, gray), centered, max 4 lines
-  - BOTTOM: Optional metric in large bold {primary_color} text (20px)
-- All three columns identical height, symmetric, 20-24px gaps
+- Top: Blank zone for title + description overlay, accent bar
+- THREE EQUAL COLUMNS:
+  - Each: Tall white card, rounded-16px, shadow
+  - TOP: Large circular icon (56px) — Col1: {primary_color}, Col2: {accent_color}, Col3: #38A169, emoji inside
+  - BELOW icon: Blank zones for title, description, metric overlays
+- All three identical height, symmetric, 20-24px gaps
 
 {visual_identity}
 
-Generate this three column slide image now."""
+Generate this three column visual structure (NO TEXT) now."""
 
 
 TIMELINE_PROMPT = """## Image Type
-Professional TIMELINE slide — chronological event sequence.
+Professional TIMELINE slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Events: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Description line: 14px, gray, centered
+- Top: Blank zone for title overlay, accent bar
 - HORIZONTAL TIMELINE:
-  - Thin horizontal line (3px) running left→right, gradient {primary_color}→{accent_color}
-  - Event markers: Colored circles (40px) ON the line, alternating {primary_color}/{accent_color}
-    - White emoji inside each circle
-  - ABOVE each circle: Time/period label in 12px, {primary_color}, bold
-  - BELOW each circle: White card (rounded-12px, shadow)
-    - Bold event title (13px, dark), centered
-    - Description (11px, gray), centered
-- Events evenly spaced, clear left→right temporal progression
-- Timeline line is the unifying visual spine
+  - Thin line (3px) left→right, gradient {primary_color}→{accent_color}
+  - Event circles (40px) ON the line, alternating colors, emoji inside
+  - ABOVE circles: Blank zone for time labels
+  - BELOW circles: Small white cards (blank) for title + description overlay
+- Evenly spaced, clear left→right progression
 
 {visual_identity}
 
-Generate this timeline slide image now."""
+Generate this timeline visual structure (NO TEXT) now."""
 
 
 RISK_ANALYSIS_PROMPT = """## Image Type
-Professional RISK ANALYSIS slide — severity-coded risk assessment.
+Professional RISK ANALYSIS slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Risks to display: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Description line: 14px, gray, centered
-- STACKED RISK CARDS (3-5), each card:
+- Top: Blank zone for title overlay, accent bar
+- STACKED CARDS (3-5):
   - White rounded rectangle, shadow, full width
-  - LEFT EDGE: Color-coded severity bar (6px wide × full height)
-    - HIGH: #E53E3E (red), MEDIUM: #F59E0B (amber), LOW: #38A169 (green)
-  - LEFT inside: Severity badge "[HIGH]" / "[MEDIUM]" / "[LOW]" in matching color, bold, 12px
-  - CENTER: Bold risk title (17px, dark) + description (13px, gray)
-  - RIGHT or below: Mitigation text in {primary_color}, prefixed with →
-- Cards stacked vertically with 12px gaps
-- Color coding creates immediate visual priority ranking
+  - LEFT EDGE: Color-coded severity bar (6px wide)
+    - Bars use #E53E3E, #F59E0B, #38A169 colors
+  - Inside cards: Blank zones for severity label, title, description, mitigation overlay
+- Cards stacked with 12px gaps
 
 {visual_identity}
 
-Generate this risk analysis slide image now."""
+Generate this risk analysis visual structure (NO TEXT) now."""
 
 
 SUMMARY_PROMPT = """## Image Type
-Professional SUMMARY slide — numbered key takeaways.
+Professional SUMMARY slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Summary points: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- NUMBERED LIST of 3-5 takeaways, each as a card:
+- Top: Blank zone for title overlay, accent bar
+- NUMBERED CARDS (3-5) stacked vertically:
   - White rounded card, shadow, horizontal layout
-  - LEFT: Large numbered circle (50px, {primary_color}, white bold number)
-  - RIGHT of circle: Bold title (17px, dark) + description (13px, gray)
-- Cards stacked vertically, centered on slide (max-width 700px)
-- 12px gaps between cards
-- Clean, conclusive feel — this wraps up the presentation
+  - LEFT: Large circle (50px, {primary_color}) — may contain digit number
+  - RIGHT of circle: Blank zone for title + description overlay
+- Cards centered (max-width 700px), 12px gaps
 
 {visual_identity}
 
-Generate this summary slide image now."""
+Generate this summary visual structure (NO TEXT) now."""
 
 
 CLOSING_PROMPT = """## Image Type
-Professional CLOSING slide — thank you + resources.
+Professional CLOSING slide — visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Resources/links: {content_hints}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
 
 ## Layout
-- UPPER CENTER: Title in 36px, extra-bold, dark charcoal
-- CENTER: Closing message (16px, muted gray), centered, max 2 lines
-- LOWER CENTER: Row of RESOURCE CARDS (3-5):
-  - Each card: White, rounded-16px, shadow, compact (120-160px wide)
-  - Emoji at top (24px), centered
-  - Bold label (13px), centered
-  - Optional description (10px, gray), centered
-  - Cards evenly spaced with 20px gaps
+- UPPER: Blank zone for title overlay
+- CENTER: Blank zone for closing message overlay
+- LOWER: Row of compact cards (3-5):
+  - Each card: White, rounded-16px, shadow (120-160px wide)
+  - Emoji symbol at top, blank zones for label + description overlay
+  - Cards evenly spaced, 20px gaps
 - Warm, professional, conclusive mood
-- Generous whitespace above and below content
 
 {visual_identity}
 
-Generate this closing slide image now."""
+Generate this closing visual structure (NO TEXT) now."""
 
 
 GENERIC_PROMPT = """## Image Type
-Professional presentation slide — {slide_type} layout.
+Professional presentation slide — {slide_type} visual structure only (no text).
 
-## Content
-- Title: "{topic}"
-- Content details: {content_hints}
-- Layout emphasis: {design_direction}
+## Content Context (for layout decisions only — do NOT render this text)
+{content_hints}
+Layout emphasis: {design_direction}
 
 ## Layout
-- Title: Centered top, extra-bold, accent bar below
-- Content arranged in clean, structured layout appropriate for this slide type
-- Use white cards with shadows for content grouping
-- Colored circle badges for icons/numbers using {primary_color} and {accent_color}
-- Clear visual hierarchy: Title → Content → Details
+- Top: Blank zone for title overlay, accent bar
+- Content area: White cards with shadows for content grouping
+- Colored circle badges ({primary_color}/{accent_color}) for visual anchors
+- All text zones left blank for code overlay
 
 {visual_identity}
 
-Generate this slide image now."""
+Generate this slide visual structure (NO TEXT) now."""
 
 
 # ── Template selection ──────────────────────────

@@ -110,9 +110,9 @@ export default function ChatInput() {
   };
 
   return (
-    <div className="p-4 border-t border-gray-800">
+    <div className="p-4 border-t border-blue-200">
       {/* Debug status */}
-      <div className="mb-2 p-2 bg-gray-800 rounded text-xs text-gray-300 font-mono">
+      <div className="mb-2 p-2 bg-blue-100 rounded text-xs text-gray-600 font-mono">
         상태: {status} | 이벤트: {eventCount}개
       </div>
       <div className="flex gap-2">
@@ -123,13 +123,13 @@ export default function ChatInput() {
           onKeyDown={handleKeyDown}
           placeholder="PPT를 설명해주세요... (예: 2024년 4분기 성과 보고서)"
           rows={3}
-          className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500 placeholder-gray-500"
+          className="flex-1 bg-white border border-blue-200 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-400 placeholder-gray-400 text-gray-700"
           disabled={isGenerating}
         />
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || isGenerating}
-          className="px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+          className="px-4 bg-blue-500 hover:bg-blue-400 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors"
         >
           {isGenerating ? "..." : "생성"}
         </button>
