@@ -1,10 +1,11 @@
 """
 LangGraph Pipeline - PPT Code Generation
-Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
+Architecture: Scoping -> Cover-First Design -> Parallel (Text + Remaining Design) -> Synthesis -> Validation
 
 Uses LangGraph v1.0.10 API:
 - StateGraph with conditional edges
 - Send API for parallel text + design generation
+- Cover slide generated first for style reference
 - interrupt() for human-in-the-loop
 - get_stream_writer for SSE progress
 """
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Import nodes
 from core.nodes.scoping import scoping
 from core.nodes.text_generator import text_generator
-from core.nodes.design_generator import design_generator
+from core.nodes.design_generator import cover_design_generator, design_generator
 from core.nodes.code_synthesizer import code_synthesizer
 from core.nodes.code_assembly import code_assembly
 from core.nodes.ast_validator import ast_validator
@@ -33,21 +34,61 @@ from core.nodes.runtime_validator import runtime_validator
 from core.nodes.semantic_validator import semantic_validator
 
 
-# --- Parallel dispatcher (returns Command with Send list) ---
+# --- Phase 2a: Cover + Text dispatch ---
 
-def parallel_dispatcher(state: PPTState) -> Command:
-    """Fan-out: dispatch parallel text + design generation for each slide."""
+def cover_and_text_dispatcher(state: PPTState) -> Command:
+    """Fan-out: dispatch cover design (single) + ALL text generators in parallel.
+
+    Cover design runs separately so its output image can be used as a style
+    reference for remaining slides. Text generators all run in parallel.
+    """
     brief = state["research_brief"]
     slide_plan = brief.get("slide_plan", [])
 
     sends = []
+
     for slide in slide_plan:
         payload = {
             "slide_plan": slide,
             "research_brief": brief,
         }
+        # ALL text generators run in parallel
         sends.append(Send("text_generator", payload))
+
+        # Cover design generator runs separately (first slide)
+        if slide["type"] == "cover":
+            sends.append(Send("cover_design_generator", payload))
+
+    return Command(goto=sends)
+
+
+# --- Phase 2b: Remaining design dispatch (after cover completes) ---
+
+def remaining_design_dispatcher(state: PPTState) -> Command:
+    """Fan-out: dispatch remaining (non-cover) design generators with cover image as reference.
+
+    This node runs AFTER all text_generators and cover_design_generator complete.
+    It reads cover_design_image from state and passes it to each remaining design generator.
+    """
+    brief = state["research_brief"]
+    slide_plan = brief.get("slide_plan", [])
+    cover_image = state.get("cover_design_image") or ""
+
+    sends = []
+    for slide in slide_plan:
+        if slide["type"] == "cover":
+            continue  # Already generated in Phase 2a
+
+        payload = {
+            "slide_plan": slide,
+            "research_brief": brief,
+            "reference_image_b64": cover_image,
+        }
         sends.append(Send("design_generator", payload))
+
+    if not sends:
+        # Edge case: only cover slide
+        return Command(goto="code_synthesizer")
 
     return Command(goto=sends)
 
@@ -137,19 +178,39 @@ async def progress_scoping(state: PPTState) -> dict:
     return result
 
 
-def progress_parallel_dispatcher(state: PPTState) -> Command:
+def progress_cover_and_text_dispatcher(state: PPTState) -> Command:
     writer = get_stream_writer()
     slide_count = len(state.get("research_brief", {}).get("slide_plan", []))
     writer({
         "phase": 2,
-        "step": "parallel_dispatcher",
-        "message": f"텍스트 + 디자인 병렬 생성 시작 ({slide_count}장 x 2)...",
+        "step": "cover_text_dispatch",
+        "message": f"Cover 디자인 + 텍스트 {slide_count}장 생성 시작...",
     })
-    result = parallel_dispatcher(state)
+    result = cover_and_text_dispatcher(state)
     writer({
         "phase": 2,
-        "step": "parallel_dispatcher",
-        "message": "병렬 분배 완료",
+        "step": "cover_text_dispatch",
+        "message": "Cover + 텍스트 분배 완료",
+        "done": True,
+    })
+    return result
+
+
+def progress_remaining_design_dispatcher(state: PPTState) -> Command:
+    writer = get_stream_writer()
+    cover_ok = bool(state.get("cover_design_image"))
+    slide_plan = state.get("research_brief", {}).get("slide_plan", [])
+    remaining = sum(1 for s in slide_plan if s["type"] != "cover")
+    writer({
+        "phase": 2,
+        "step": "remaining_design_dispatch",
+        "message": f"나머지 {remaining}장 디자인 생성 (스타일 레퍼런스: {'✓' if cover_ok else '✗'})...",
+    })
+    result = remaining_design_dispatcher(state)
+    writer({
+        "phase": 2,
+        "step": "remaining_design_dispatch",
+        "message": "디자인 분배 완료",
         "done": True,
     })
     return result
@@ -236,15 +297,29 @@ async def progress_semantic_validator(state: PPTState) -> dict:
 # --- Build Pipeline ---
 
 def build_pipeline():
-    """Build the LangGraph StateGraph pipeline."""
+    """Build the LangGraph StateGraph pipeline.
+
+    Flow:
+      scoping
+        → cover_and_text_dispatcher (Send: all text_generators + cover_design_generator)
+          → [text_generator x N] + [cover_design_generator x 1] (parallel)
+            → remaining_design_dispatcher (reads cover image, Send: design_generator x N-1)
+              → [design_generator x N-1] (parallel, with cover as style reference)
+                → code_synthesizer
+                  → code_assembly → validation chain
+    """
     graph = StateGraph(PPTState)
 
     # Phase 1: Scoping
     graph.add_node("scoping", progress_scoping)
 
-    # Phase 2: Parallel Dispatch
-    graph.add_node("parallel_dispatcher", progress_parallel_dispatcher)
+    # Phase 2a: Cover + Text parallel dispatch
+    graph.add_node("cover_and_text_dispatcher", progress_cover_and_text_dispatcher)
     graph.add_node("text_generator", text_generator)
+    graph.add_node("cover_design_generator", cover_design_generator)
+
+    # Phase 2b: Remaining design dispatch (with cover as reference)
+    graph.add_node("remaining_design_dispatcher", progress_remaining_design_dispatcher)
     graph.add_node("design_generator", design_generator)
 
     # Phase 3: Synthesis + Assembly
@@ -261,11 +336,15 @@ def build_pipeline():
 
     # Phase 1: Scoping
     graph.add_edge(START, "scoping")
-    graph.add_edge("scoping", "parallel_dispatcher")
-    # parallel_dispatcher returns Command(goto=list[Send])
+    graph.add_edge("scoping", "cover_and_text_dispatcher")
+    # cover_and_text_dispatcher returns Command(goto=list[Send])
 
-    # Phase 2: Fan-in after parallel text + design generation
-    graph.add_edge("text_generator", "code_synthesizer")
+    # Phase 2a: Fan-in after text + cover design complete
+    graph.add_edge("text_generator", "remaining_design_dispatcher")
+    graph.add_edge("cover_design_generator", "remaining_design_dispatcher")
+    # remaining_design_dispatcher returns Command(goto=list[Send]) or Command(goto="code_synthesizer")
+
+    # Phase 2b: Fan-in after remaining designs complete
     graph.add_edge("design_generator", "code_synthesizer")
 
     # Phase 3: Synthesis -> Assembly -> Validation

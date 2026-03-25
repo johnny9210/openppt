@@ -19,6 +19,7 @@ class PPTState(TypedDict):
     # Phase 2: Parallel Generation
     slide_contents: Annotated[list[dict], operator.add]   # Text branch
     slide_designs: Annotated[list[dict], operator.add]     # Design branch (images)
+    cover_design_image: str  # Cover slide image for style reference
 
     # Phase 3: Synthesis
     generated_slides: Annotated[list[dict], operator.add]  # Vision -> code
@@ -43,3 +44,4 @@ class DesignGeneratorState(TypedDict):
 
     slide_plan: dict
     research_brief: dict
+    reference_image_b64: str  # Cover image for style consistency

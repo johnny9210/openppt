@@ -57,24 +57,49 @@ async def generate_slide_image(
     prompt: str,
     aspect_ratio: str = "16:9",
     image_size: str = "1K",
+    reference_image_b64: str | None = None,
+    thinking_budget: int | None = None,
 ) -> str | None:
     """Generate a PPT slide design image via Nano Banana (Gemini).
 
     Uses the same payload structure as aidx/search_api GoogleGeminiImageRequest.
     Returns base64-encoded image string, or None on failure.
+
+    Args:
+        prompt: Design prompt text.
+        aspect_ratio: Image aspect ratio (default 16:9).
+        image_size: Output resolution (1K, 2K, 4K).
+        reference_image_b64: Optional cover slide image for style consistency.
+        thinking_budget: Optional thinking tokens for complex layouts.
     """
     optimized = _optimize_prompt_for_korean(prompt)
     url = f"{GEMINI_API_BASE}/{GEMINI_IMAGE_MODEL}:generateContent"
 
-    # Match search_api payload structure: imageConfig instead of responseModalities
-    payload = {
-        "contents": [{"parts": [{"text": optimized}]}],
-        "generationConfig": {
-            "imageConfig": {
-                "aspectRatio": aspect_ratio,
-                "imageSize": image_size,
+    # Build multimodal parts: optional reference image + text prompt
+    parts = []
+    if reference_image_b64:
+        parts.append({
+            "inlineData": {
+                "mimeType": "image/png",
+                "data": reference_image_b64,
             }
-        },
+        })
+        logger.info("[NanoBanana] Reference image attached: %d bytes", len(reference_image_b64))
+    parts.append({"text": optimized})
+
+    generation_config = {
+        "imageConfig": {
+            "aspectRatio": aspect_ratio,
+            "imageSize": image_size,
+        }
+    }
+    if thinking_budget:
+        generation_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
+        logger.info("[NanoBanana] Thinking mode enabled: budget=%d", thinking_budget)
+
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": generation_config,
     }
 
     headers = {

@@ -111,6 +111,7 @@ async def generate_ppt(request: GenerateRequest):
         "research_brief": {},
         "slide_contents": [],
         "slide_designs": [],
+        "cover_design_image": "",
         "generated_slides": [],
         "react_code": "",
         "slide_spec": {},

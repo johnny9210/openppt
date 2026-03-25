@@ -2,7 +2,11 @@
 Phase 2-B: Design Generator
 Generates PPT slide design images using Nano Banana (Gemini) via Send API.
 
-Slide-type-specific prompts for optimal design output.
+Prompt strategy based on Nano Banana Pro best practices:
+  - ICS framework: Image type + Content + Style
+  - Shared visual identity across all slides for consistency
+  - Concrete text content embedded for accurate Korean text rendering
+  - Professional style references (McKinsey, Apple Keynote level)
 """
 
 import logging
@@ -13,487 +17,433 @@ from core.services.nano_banana import generate_slide_image
 logger = logging.getLogger(__name__)
 
 
-# ── Type-specific prompt templates ──────────────────────────
+# ── Shared Visual Identity (prepended to all prompts) ──────
 
-COVER_PROMPT = """Create a professional presentation COVER slide image.
+VISUAL_IDENTITY = """## Visual Identity (MUST apply to every slide)
+- Aspect ratio: 16:9 widescreen (960×540 proportions)
+- Background: Clean light gray (#F5F7FA), NOT white, NOT dark
+- Typography: Bold modern sans-serif (Pretendard / Noto Sans KR style)
+  - Titles: Extra-bold, dark charcoal (#1A202C), large (40-52px equivalent)
+  - Body: Regular weight, muted gray (#64748B), 14-16px equivalent
+  - Accents: {primary_color} for emphasis, {accent_color} for secondary highlights
+- Card elements: Pure white (#FFFFFF), border-radius 16px, subtle shadow (0 2px 8px rgba(0,0,0,0.06)), thin border (#E2E8F0)
+- Icon badges: Circular, 50-60px, solid color fill ({primary_color} or {accent_color}), white icon/emoji inside
+- Accent bar: Thin colored line (width 48px, height 4px) centered below titles using {primary_color}
+- Decorations: Subtle geometric network pattern (thin lines + small dots) in top-right corner, opacity 10-15%
+- Overall mood: McKinsey consulting deck meets Apple Keynote — clean, confident, premium
 
-## Layout
-- LEFT SIDE (60%): Title area
-  - Main title: Large bold text "{topic}"
-  - Subtitle below the title (smaller, lighter weight)
-  - Presenter info at bottom-left: name, date, organization (small, gray text)
-- RIGHT SIDE (40%): Visual illustration
-  - A relevant diagram, icon composition, or illustration related to the topic
-  - Icons connected with arrows/lines showing a workflow or concept map
-  - Use colorful flat-style icons (cloud, database, email, document, rocket, gear, etc.)
+## Whitespace & Density Rules
+- Maximum 6 text elements visible on a single slide
+- At least 30% of slide area must be empty whitespace
+- Group items into 3-4 categories if more than 6 exist — less is more
+- Generous padding inside cards (24-28px) and between cards (20px gaps)
+- Title area: Leave 48px+ below title before content starts
 
-## Design Style
-- Background: Clean light gray/white (#F5F7FA or similar) with subtle geometric network pattern (thin lines + small dots)
-- Small decorative gear/cog icons in top-left corner area (subtle, light gray)
-- A circular badge/emblem in top-right area with a relevant icon inside
-- Typography: Clean sans-serif (like Pretendard, Noto Sans KR), bold for title
-- Color palette: Mostly grayscale background, with {primary_color} and {accent_color} for accent elements (arrows, highlights)
-- Icons should be colorful but harmonious
+## Text Rendering Rules
+- Korean text MUST be perfectly legible, crisp, properly kerned
+- Use bold sans-serif for all Korean text (Pretendard or Noto Sans KR weight 700+)
+- Keep total visible text under 80 words per slide
+- Enclose exact text to render in double quotes within the prompt
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Corporate, clean, professional look (NOT dark mode, NOT glassmorphism)
-- Korean text must be rendered clearly with bold sans-serif font
-- The overall feel should be modern, trustworthy, and business-appropriate
-- Make the right-side illustration visually engaging and relevant to the topic
-
-Generate the cover slide design image now."""
-
-
-TOC_PROMPT = """Create a professional TABLE OF CONTENTS slide image.
-
-## Layout
-- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
-- Items arranged in a ZIGZAG / STAGGERED layout:
-  - Odd items (1, 3, 5): card on the LEFT side
-  - Even items (2, 4): card on the RIGHT side
-  - Numbered circles (1, 2, 3, 4, 5) running down the CENTER as a vertical timeline spine
-- Each item card contains:
-  - A relevant colorful flat icon on the left inside the card (gear, rocket, document, API, trophy, etc.)
-  - Bold title text next to the icon
-  - Smaller gray description text below the title
-- Cards have rounded corners, light gray background (#F0F2F5), thin subtle border
-
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
-- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
-- Decorative circular badge in top-right corner with a relevant icon (like a list/menu icon or workflow icon)
-- Number circles: colored with {primary_color} or {accent_color}, white number text inside
-  - Alternate colors between items for visual rhythm (e.g., blue for 1,3,5 and orange/red for 2,4)
-- Typography: Clean sans-serif (Pretendard/Noto Sans KR style), bold for card titles
-- Cards: Rounded rectangle, light fill, subtle shadow
-
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Clean, professional, corporate presentation look
-- NOT dark mode - use light background
-- Korean text must be clearly rendered with bold sans-serif font
-- The zigzag layout with center number spine is the KEY visual element
-- Make it look organized and easy to follow
-
-Generate the table of contents slide design image now."""
+## DO NOT (Negative Instructions)
+- NO dark mode, NO glassmorphism, NO gradient backgrounds
+- NO 3D effects, NO extreme drop shadows, NO bevels
+- NO clip-art style graphics or cartoonish icons
+- NO neon or overly saturated colors
+- NO text smaller than 12px equivalent
+- NO overlapping text or cramped layouts
+- NO tag-spam modifiers like "4k, masterpiece, trending on artstation"
+- NO more than 2 font sizes per card (title + body only)"""
 
 
-KEY_POINTS_PROMPT = """Create a professional KEY POINTS slide image.
+# ── Type-specific prompt templates (ICS framework) ──────────
+
+
+COVER_PROMPT = """## Image Type
+Professional presentation COVER slide — the first impression slide.
+
+## Content
+- Title text (large, bold, left-aligned): "{topic}"
+- Subtitle: Based on key points below
+- Bottom-left: Presenter info + date in small gray text
+- Key points for context: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
-- 2x2 GRID of cards below the title, evenly spaced with generous gaps
-- Each card contains:
-  - LEFT: A large circular icon badge (60-70px diameter) with a colorful background
-    - Use warm colors like coral/orange (#E8734A) or cool colors like blue (#6BA3D6) for circle backgrounds
-    - Alternate colors between cards for visual variety
-    - Flat-style white icon inside (cloud, envelope, rocket, API, database, gear, etc.)
-  - RIGHT of the icon: Bold title text + smaller gray description text below (2 lines max)
-- Cards have rounded corners, very light gray fill (#F0F2F5), thin subtle border
+- LEFT 58%: Title block
+  - Title: Extra-bold, 44-52px, dark charcoal, left-aligned, max 2 lines
+  - Accent bar (48×4px, {primary_color}) directly below the title
+  - Subtitle: 18px, muted gray, 1-2 lines, left-aligned
+  - Presenter/date: 13px, bottom-left, light gray
+- RIGHT 42%: Thematic visual illustration
+  - A cohesive icon composition related to the topic (3-5 connected icons)
+  - Icons: Flat style, colorful but harmonious, connected by thin arrows/lines
+  - A central icon badge (larger, circular, {primary_color} background) as the focal point
+  - Surrounding smaller icons in white cards with subtle shadows
+- Background: Light decorative curves/shapes in top-right area (very subtle, {accent_color} at 8% opacity)
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
-- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
-- Decorative circular badge in top-right corner with a relevant icon
-- Typography: Clean sans-serif (Pretendard/Noto Sans KR style)
-  - Card titles: Bold, dark (#333333), ~18-20px
-  - Card descriptions: Regular weight, gray (#666666), ~14px
-- Cards should feel like uniform, balanced tiles
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Clean, professional, corporate look - NOT dark mode
-- Korean text must be clearly rendered with bold sans-serif font
-- The 2x2 grid with large circular icons is the KEY visual element
-- Each card should be the same size and aligned symmetrically
-
-Generate the key points slide design image now."""
+Generate this cover slide image now."""
 
 
-DATA_VIZ_PROMPT = """Create a professional DATA VISUALIZATION slide image.
+TOC_PROMPT = """## Image Type
+Professional TABLE OF CONTENTS slide — navigation overview.
+
+## Content
+- Title: "{topic}"
+- Items to display: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
-- LEFT SIDE (50-60%): Chart area
-  - A decorative icon badge in top-left (e.g., bar chart icon inside a gray circle)
-  - Section subtitle (e.g., "주요 성과 데이터") in bold
-  - Large DONUT/PIE CHART centered, with percentage labels around it
-    - Each segment has a % value label positioned outside the chart
-    - Short description text next to each % label (e.g., "자동화 비율 50%", "처리 시간 단축 13%")
-  - Key stat callouts above the chart (e.g., "자동화 성공률 98%", "업무 시간 35% 단축")
-  - Small note text at the bottom of the chart area
-- Chart colors: Use warm/cool palette - orange (#E8944A), blue (#4A7AB5), dark blue (#2C4A6E), light blue (#6BA3D6), gray
+- Title: Centered top, extra-bold, accent bar below
+- Items in ZIGZAG/STAGGERED layout:
+  - Vertical timeline spine running down center with numbered circles
+  - Odd items (1, 3, 5): Card LEFT of spine
+  - Even items (2, 4, 6): Card RIGHT of spine
+  - Number circles: 36px, solid {primary_color} (odd) / {accent_color} (even), white number
+- Each card: White rounded rectangle with icon + bold title + gray description
+- Cards connected to number circles by thin lines
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
-- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
-- Decorative circular badge in top-right corner
-- Typography: Clean sans-serif, bold for titles and percentages
-- Chart: Clean donut chart with generous inner radius, no 3D effects
-- Layout direction: {design_direction}
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Clean, professional, corporate look - NOT dark mode
-- Korean text must be clearly rendered with bold sans-serif font
-- Data labels must be easy to read at a glance
-- The donut chart with surrounding stat callouts is the KEY visual element
-
-Generate the data visualization slide design image now."""
+Generate this table of contents slide image now."""
 
 
-ACTION_PLAN_PROMPT = """Create a professional ACTION PLAN / TIMELINE slide image.
+KEY_POINTS_PROMPT = """## Image Type
+Professional KEY POINTS slide — 2-4 main takeaways in card grid.
+
+## Content
+- Title: "{topic}"
+- Points to display: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with a short colored underline bar below it
-- A decorative icon at the top of the timeline (e.g., rocket icon)
+- Title: Centered top, extra-bold, accent bar below
+- Optional description line: 14px, muted gray, centered
+- 2×2 GRID of cards (or 1×2 / 1×3 depending on point count):
+  - Each card: White, rounded-16px, shadow, border
+  - LEFT inside card: Circular icon badge (56px, alternating {primary_color}/{accent_color})
+    - White emoji or flat icon inside
+  - RIGHT of icon: Bold title (17px, dark) + description (13px, gray) + optional metric
+  - Cards are uniform size, symmetric, evenly spaced with 20px gaps
+- Maximum 4 cards visible — if more points, group them
+
+{visual_identity}
+
+Generate this key points slide image now."""
+
+
+DATA_VIZ_PROMPT = """## Image Type
+Professional DATA VISUALIZATION slide — chart + insights.
+
+## Content
+- Title: "{topic}"
+- Data and insights: {content_hints}
+- Layout emphasis: {design_direction}
+
+## Layout
+- Title: Centered top, extra-bold, accent bar below
+- Description line below title: 14px, gray
+- CENTER: Clean chart visualization
+  - Chart type: Donut/pie chart with percentage labels OR bar chart with value labels
+  - Chart colors: {primary_color}, {accent_color}, #38A169, #F59E0B (harmonious palette)
+  - Each segment has value label and short description positioned clearly
+  - Generous inner radius for donut (clean, modern look)
+- BELOW or SIDE: Key stat callouts in small white cards (metric + label)
+- BOTTOM: Insight line in {primary_color}, bold, prefixed with 💡
+- Data labels must be large enough to read at a glance
+
+{visual_identity}
+
+Generate this data visualization slide image now."""
+
+
+ACTION_PLAN_PROMPT = """## Image Type
+Professional ACTION PLAN / ROADMAP slide — phased execution timeline.
+
+## Content
+- Title: "{topic}"
+- Phases/steps: {content_hints}
+- Layout emphasis: {design_direction}
+
+## Layout
+- Title: Centered top, extra-bold, accent bar below
 - VERTICAL TIMELINE flowing top to bottom:
-  - A thin vertical line running down the center-left area
-  - Numbered circles (1, 2, 3...) on the line as milestone markers
-    - Use {primary_color} or {accent_color} for circle backgrounds, white number text
-  - Each step has a CARD to the right of the numbered circle:
-    - Card has rounded corners, light gray fill (#F0F2F5), thin border
-    - Bold title text (e.g., "1단계: 기초 학습 및 환경 설정")
-    - Bullet points below the title with key tasks (• item1, • item2)
-  - Cards are stacked vertically with clear spacing between them
+  - Thin vertical line on left side ({primary_color} to {accent_color} gradient)
+  - Numbered circles (36px) on the line as milestone markers
+    - Alternate {primary_color} and {accent_color}
+  - Each milestone → Card to the RIGHT:
+    - White rounded rectangle, shadow, border
+    - Bold phase title (e.g., "Phase 1: 기초 학습")
+    - Period/duration in small {accent_color} text
+    - Bullet points: • task items in gray
+  - A small rocket or target icon at the top of the timeline
+- Clear top-to-bottom visual flow, each phase distinct
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern (thin connecting lines + small dots)
-- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
-- Decorative circular badge in top-right corner
-- Typography: Clean sans-serif (Pretendard/Noto Sans KR style)
-  - Step titles: Bold, dark (#333333)
-  - Bullet items: Regular, gray (#555555)
-- Timeline line: Thin gray (#CCCCCC) vertical line
-- Number circles: ~36px diameter, colored background
-- Layout direction: {design_direction}
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Clean, professional, corporate look - NOT dark mode
-- Korean text must be clearly rendered with bold sans-serif font
-- The vertical timeline with numbered circles and side cards is the KEY visual element
-- Steps should flow naturally from top to bottom
-
-Generate the action plan slide design image now."""
+Generate this action plan slide image now."""
 
 
-HERO_PROMPT = """Create a professional HERO MESSAGE slide image.
+HERO_PROMPT = """## Image Type
+Professional HERO MESSAGE slide — single powerful statement.
+
+## Content
+- Main message: "{topic}"
+- Supporting context: {content_hints}
 
 ## Layout
-- A single powerful message displayed LARGE and CENTERED
-- Main text: Very large bold font (60-80px equivalent), centered vertically and horizontally
-- Subtitle text below: Smaller, lighter weight (18-20px), gray
-- Accent word in the title should use {accent_color} color
-- Generous whitespace around the text — let it breathe
+- The text IS the design — ultra minimal
+- CENTER: Main message in VERY large bold text (52-64px equivalent)
+  - Dark charcoal (#1A202C), centered vertically and horizontally
+  - If an accent word is specified, color it with {primary_color}
+  - Max 2 lines, generous line-height (1.2)
+- BELOW: Subtitle in 20px, muted gray, centered, max 1-2 lines
+- Background: Light #F5F7FA with a subtle oversized geometric shape behind text
+  - e.g., large circle or rounded rectangle at 3-5% opacity using {accent_color}
+- Extreme whitespace — let the message breathe
+- NO cards, NO icons, NO grids — pure typographic impact
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- Optional: A large, faded decorative icon or shape behind the text (very subtle, 5% opacity)
-- Decorative gear/cog icons cluster in top-left corner (subtle, light gray)
-- Typography: Clean sans-serif, extra bold for the main message
-- Minimal design — the text IS the visual
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Clean, impactful, minimal look
-- Korean text must be rendered clearly with bold sans-serif font
-- The large centered text is the KEY visual element
-
-Generate the hero message slide design image now."""
+Generate this hero message slide image now."""
 
 
-QUOTE_PROMPT = """Create a professional QUOTE slide image.
+QUOTE_PROMPT = """## Image Type
+Professional QUOTE slide — impactful citation or statement.
+
+## Content
+- Quote: Based on key points: {content_hints}
+- Topic context: "{topic}"
 
 ## Layout
-- Large opening quotation mark (") in {accent_color}, decorative, top-left of the quote area
-- Quote text: Large bold font (32-40px equivalent), centered
-- Attribution/source below the quote: Smaller, lighter text with a dash prefix
-- Optional context line below attribution
+- Decorative large opening quotation mark (") in {accent_color}, 120px, opacity 15%, top-left area
+- Vertical accent bar: 4px wide × 60px tall, {primary_color}, centered above quote
+- QUOTE TEXT: 28-36px, bold, dark charcoal, centered, max width 650px, line-height 1.5
+- Attribution: "— Source name" in 16px, muted gray, centered below quote
+- Optional context line: 14px, muted gray, below attribution
+- Extreme whitespace — the quote is the only content
+- Warm, thoughtful, contemplative mood
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- A vertical accent bar on the left side using {primary_color}
-- Decorative elements: subtle, minimal
-- Typography: Serif or elegant sans-serif for the quote, regular sans-serif for attribution
-- Warm, thoughtful mood
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- The quote should feel impactful and readable
-- Korean text must be rendered clearly
-- Generous whitespace around the quote text
-
-Generate the quote slide design image now."""
+Generate this quote slide image now."""
 
 
-ICON_GRID_PROMPT = """Create a professional ICON GRID slide image.
+ICON_GRID_PROMPT = """## Image Type
+Professional ICON GRID slide — 4-6 items in visual grid.
+
+## Content
+- Title: "{topic}"
+- Items to display: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with a short colored underline bar
-- GRID of 5-6 items arranged in 2 rows x 3 columns (or 3x2)
-- Each item is a compact card containing:
-  - A large circular icon (50-60px) with colored background at the top
-  - Label text below the icon: Bold, centered
-  - Short description below: Small, gray, centered
-- Cards are evenly spaced with generous gaps
+- Title: Centered top, extra-bold, accent bar below
+- Description line: 14px, muted gray, centered
+- GRID: 2×3 or 3×2 arrangement of cards
+  - Each card: White, rounded-16px, shadow, centered content
+  - TOP of card: Circular icon badge (56px)
+    - Alternating {primary_color}/{accent_color} backgrounds
+    - White emoji or flat icon inside
+  - MIDDLE: Bold label (16px, dark), centered
+  - BOTTOM: Short description (12px, gray), centered, max 2 lines
+- All cards identical size, symmetric spacing (20px gaps)
+- Grid centered on slide
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric network pattern
-- Icon circles: Alternate between {primary_color} and {accent_color} backgrounds
-- Cards: Light background, rounded corners, subtle shadow
-- Typography: Clean sans-serif, centered text alignment
-- Each icon should be distinct and relevant to its label
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Clean, organized, professional look
-- Korean text clearly rendered
-- The icon grid with colorful circles is the KEY visual element
-
-Generate the icon grid slide design image now."""
+Generate this icon grid slide image now."""
 
 
-PROCESS_FLOW_PROMPT = """Create a professional PROCESS FLOW slide image.
+PROCESS_FLOW_PROMPT = """## Image Type
+Professional PROCESS FLOW slide — step-by-step horizontal progression.
+
+## Content
+- Title: "{topic}"
+- Steps: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with colored underline bar
-- HORIZONTAL FLOW of 3-5 steps connected by arrows
-- Each step is a rounded rectangle card containing:
-  - Step number or icon at the top (colored circle)
-  - Step title: Bold text
-  - Step description: Smaller gray text
-- Large arrow (→) connecting each step, using {accent_color}
-- Steps arranged LEFT to RIGHT in a single row
+- Title: Centered top, extra-bold, accent bar below
+- Description line if applicable: 14px, gray, centered
+- HORIZONTAL FLOW: 3-5 step cards connected by arrows
+  - Each step: White rounded card (min-width 130px), shadow, border
+    - TOP: Circular number/icon badge (44px, alternating {primary_color}/{accent_color})
+    - MIDDLE: Bold step title (14px), centered
+    - BOTTOM: Description (11px, gray), centered, max 3 lines
+  - Between cards: Bold arrow "→" in {primary_color}, 24px
+  - Cards arranged LEFT→RIGHT in a single horizontal row
+  - Equal card sizes, symmetric spacing
+- The arrow flow is the KEY visual element — clear progression
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- Step cards: White with rounded corners, subtle shadow
-- Arrows: Bold, colored, clearly visible connecting the steps
-- Step numbers: Colored circles with white text using {primary_color}
-- Typography: Clean sans-serif
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- The horizontal arrow flow is the KEY visual element
-- Steps should feel like a clear progression
-- Korean text clearly rendered
-
-Generate the process flow slide design image now."""
+Generate this process flow slide image now."""
 
 
-COMPARISON_PROMPT = """Create a professional COMPARISON slide image.
+COMPARISON_PROMPT = """## Image Type
+Professional COMPARISON slide — side-by-side contrast.
+
+## Content
+- Title: "{topic}"
+- Comparison items: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with colored underline bar
-- TWO COLUMNS side by side, split at the center
-- LEFT COLUMN:
-  - Header with icon and label (e.g., "Before" or "Problem")
-  - Background tint: subtle red/warm tone
-  - List of items with bullet points or X marks
-- RIGHT COLUMN:
-  - Header with icon and label (e.g., "After" or "Solution")
-  - Background tint: subtle green/cool tone
-  - List of items with bullet points or check marks
-- A vertical divider or VS icon between the columns
+- Title: Centered top, extra-bold
+- TWO COLUMNS with 24px gap between them:
+  - LEFT COLUMN: "Before" / "Problem" / negative side
+    - Header: Red (#E53E3E) circle badge with ✕ icon + bold label
+    - White card with subtle warm tint (light red border-left)
+    - List items with ✕ marks in red
+  - RIGHT COLUMN: "After" / "Solution" / positive side
+    - Header: Green (#38A169) circle badge with ✓ icon + bold label
+    - White card with subtle cool tint (light green border-left)
+    - List items with ✓ marks in green
+- Both columns: Equal width, same card height, balanced visual weight
+- Clear visual contrast between left (negative) and right (positive)
 
-## Design Style
-- Background: Clean light/white (#F5F7FA)
-- Left column: Subtle warm tint (light red/orange background)
-- Right column: Subtle cool tint (light green/blue background)
-- Typography: Clean sans-serif, bold headers
-- Clear visual contrast between the two sides
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- The two-column contrast is the KEY visual element
-- Korean text clearly rendered
-- Balance between left and right sides
-
-Generate the comparison slide design image now."""
+Generate this comparison slide image now."""
 
 
-THREE_COLUMN_PROMPT = """Create a professional THREE COLUMN slide image.
+THREE_COLUMN_PROMPT = """## Image Type
+Professional THREE COLUMN slide — three equal categories.
+
+## Content
+- Title: "{topic}"
+- Columns: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with colored underline bar
-- THREE EQUAL COLUMNS arranged horizontally
-- Each column is a tall card containing:
-  - Icon or emoji at the top (large, in a colored circle)
-  - Column title: Bold, centered
-  - Column description: Regular, gray, centered
-  - Optional metric at bottom: Large, bold, colored
-- Cards have equal width and height, rounded corners
+- Title: Centered top, extra-bold, accent bar below
+- Description line: 14px, gray, centered
+- THREE EQUAL COLUMNS (each ~30% width):
+  - Each column: Tall white card, rounded-16px, shadow, border
+  - TOP: Large circular icon (56px)
+    - Column 1: {primary_color}, Column 2: {accent_color}, Column 3: #38A169
+    - White emoji inside
+  - UPPER-MIDDLE: Bold title (17px, dark), centered
+  - CENTER: Description (13px, gray), centered, max 4 lines
+  - BOTTOM: Optional metric in large bold {primary_color} text (20px)
+- All three columns identical height, symmetric, 20-24px gaps
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- Cards: White with subtle shadow and thin border
-- Icon circles: Alternate colors using {primary_color} and {accent_color}
-- Typography: Clean sans-serif, centered alignment
-- Balanced, symmetric layout
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Three equal columns is the KEY visual element
-- Korean text clearly rendered
-- Clean, professional, balanced look
-
-Generate the three column slide design image now."""
+Generate this three column slide image now."""
 
 
-TIMELINE_PROMPT = """Create a professional TIMELINE slide image.
+TIMELINE_PROMPT = """## Image Type
+Professional TIMELINE slide — chronological event sequence.
+
+## Content
+- Title: "{topic}"
+- Events: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with colored underline bar
-- HORIZONTAL TIMELINE running left to right
-- A thin horizontal line as the timeline spine
-- Events marked with circles on the timeline:
-  - Circle with time label above
-  - Card below with icon, title, and description
-- Events evenly spaced along the timeline
+- Title: Centered top, extra-bold, accent bar below
+- Description line: 14px, gray, centered
+- HORIZONTAL TIMELINE:
+  - Thin horizontal line (3px) running left→right, gradient {primary_color}→{accent_color}
+  - Event markers: Colored circles (40px) ON the line, alternating {primary_color}/{accent_color}
+    - White emoji inside each circle
+  - ABOVE each circle: Time/period label in 12px, {primary_color}, bold
+  - BELOW each circle: White card (rounded-12px, shadow)
+    - Bold event title (13px, dark), centered
+    - Description (11px, gray), centered
+- Events evenly spaced, clear left→right temporal progression
+- Timeline line is the unifying visual spine
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- Timeline line: Colored gradient using {primary_color} to {accent_color}
-- Event circles: Colored, connected to cards with thin lines
-- Cards: Light background, rounded corners, compact
-- Typography: Clean sans-serif
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- The horizontal timeline with event markers is the KEY visual element
-- Korean text clearly rendered
-- Clear temporal progression from left to right
-
-Generate the timeline slide design image now."""
+Generate this timeline slide image now."""
 
 
-SUMMARY_PROMPT = """Create a professional SUMMARY / RECAP slide image.
+RISK_ANALYSIS_PROMPT = """## Image Type
+Professional RISK ANALYSIS slide — severity-coded risk assessment.
+
+## Content
+- Title: "{topic}"
+- Risks to display: {content_hints}
 
 ## Layout
-- Title "{topic}" centered at the top, large bold text with colored underline bar
-- NUMBERED LIST of key takeaways (typically 3)
-- Each item has:
-  - A large colored number (1, 2, 3) on the left using {primary_color}
-  - Bold title text next to the number
-  - Description text below in gray
-- Items stacked vertically with generous spacing
-- Optional: A decorative checkmark or star icon next to each item
+- Title: Centered top, extra-bold, accent bar below
+- Description line: 14px, gray, centered
+- STACKED RISK CARDS (3-5), each card:
+  - White rounded rectangle, shadow, full width
+  - LEFT EDGE: Color-coded severity bar (6px wide × full height)
+    - HIGH: #E53E3E (red), MEDIUM: #F59E0B (amber), LOW: #38A169 (green)
+  - LEFT inside: Severity badge "[HIGH]" / "[MEDIUM]" / "[LOW]" in matching color, bold, 12px
+  - CENTER: Bold risk title (17px, dark) + description (13px, gray)
+  - RIGHT or below: Mitigation text in {primary_color}, prefixed with →
+- Cards stacked vertically with 12px gaps
+- Color coding creates immediate visual priority ranking
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- Numbers: Large (40-50px), bold, colored
-- Typography: Clean sans-serif, clear hierarchy
-- Warm, conclusive mood
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- The large numbered takeaways is the KEY visual element
-- Korean text clearly rendered
-- Should feel like a satisfying conclusion
-
-Generate the summary slide design image now."""
+Generate this risk analysis slide image now."""
 
 
-CLOSING_PROMPT = """Create a professional CLOSING slide image.
+SUMMARY_PROMPT = """## Image Type
+Professional SUMMARY slide — numbered key takeaways.
+
+## Content
+- Title: "{topic}"
+- Summary points: {content_hints}
 
 ## Layout
-- Title "{topic}" centered, large bold text
-- Main message: Medium text centered below title
-- RESOURCE CARDS or links arranged in a row at the bottom:
-  - Each card has an icon and a label (e.g., book, GitHub, YouTube)
-  - Cards evenly spaced horizontally
-- Optional: QR code placeholder area
-- "Thank you" or closing message at the very bottom
+- Title: Centered top, extra-bold, accent bar below
+- NUMBERED LIST of 3-5 takeaways, each as a card:
+  - White rounded card, shadow, horizontal layout
+  - LEFT: Large numbered circle (50px, {primary_color}, white bold number)
+  - RIGHT of circle: Bold title (17px, dark) + description (13px, gray)
+- Cards stacked vertically, centered on slide (max-width 700px)
+- 12px gaps between cards
+- Clean, conclusive feel — this wraps up the presentation
 
-## Design Style
-- Background: Clean light/white (#F5F7FA) with subtle geometric pattern
-- Resource cards: White with subtle shadow, rounded corners, icon + text
-- Typography: Clean sans-serif, warm and closing tone
-- Accent elements using {primary_color} and {accent_color}
+{visual_identity}
 
-## Content Hints
-{content_hints}
-
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Resource links and closing message are the KEY elements
-- Korean text clearly rendered
-- Should feel like a proper, professional ending
-
-Generate the closing slide design image now."""
+Generate this summary slide image now."""
 
 
-GENERIC_PROMPT = """Create a professional presentation slide design.
+CLOSING_PROMPT = """## Image Type
+Professional CLOSING slide — thank you + resources.
 
-## Slide Specifications
-- Type: {slide_type}
-- Topic: {topic}
-- Layout Direction: {design_direction}
+## Content
+- Title: "{topic}"
+- Resources/links: {content_hints}
 
-## Design Style
-- Background: Clean light gray/white (#F5F7FA) with subtle geometric network pattern
-- Cards/sections: White background with thin borders, slight shadows
-- Typography: Clean sans-serif, clear hierarchy
-  - Main title: Large (42-52px equivalent), bold
-  - Subtitles: Medium (20-24px equivalent)
-  - Body: Small (14-15px equivalent), gray
-- Colors:
-  - Primary: {primary_color}
-  - Accent: {accent_color}
-  - Text: Dark gray (#333333)
-- Decorations: Flat-style icons, subtle connecting lines
+## Layout
+- UPPER CENTER: Title in 36px, extra-bold, dark charcoal
+- CENTER: Closing message (16px, muted gray), centered, max 2 lines
+- LOWER CENTER: Row of RESOURCE CARDS (3-5):
+  - Each card: White, rounded-16px, shadow, compact (120-160px wide)
+  - Emoji at top (24px), centered
+  - Bold label (13px), centered
+  - Optional description (10px, gray), centered
+  - Cards evenly spaced with 20px gaps
+- Warm, professional, conclusive mood
+- Generous whitespace above and below content
 
-## Content to Include
-{content_hints}
+{visual_identity}
 
-## Requirements
-- Aspect ratio: 16:9 widescreen
-- Professional, clean, corporate look
-- Korean text clearly rendered with bold sans-serif
-- Visual hierarchy to guide the eye
+Generate this closing slide image now."""
 
-Generate the slide design image now."""
+
+GENERIC_PROMPT = """## Image Type
+Professional presentation slide — {slide_type} layout.
+
+## Content
+- Title: "{topic}"
+- Content details: {content_hints}
+- Layout emphasis: {design_direction}
+
+## Layout
+- Title: Centered top, extra-bold, accent bar below
+- Content arranged in clean, structured layout appropriate for this slide type
+- Use white cards with shadows for content grouping
+- Colored circle badges for icons/numbers using {primary_color} and {accent_color}
+- Clear visual hierarchy: Title → Content → Details
+
+{visual_identity}
+
+Generate this slide image now."""
 
 
 # ── Template selection ──────────────────────────
@@ -510,37 +460,100 @@ TYPE_PROMPT_MAP = {
     "process_flow": PROCESS_FLOW_PROMPT,
     "timeline": TIMELINE_PROMPT,
     "data_visualization": DATA_VIZ_PROMPT,
-    "risk_analysis": KEY_POINTS_PROMPT,  # reuse key_points layout
+    "risk_analysis": RISK_ANALYSIS_PROMPT,
     "action_plan": ACTION_PLAN_PROMPT,
     "summary": SUMMARY_PROMPT,
     "closing": CLOSING_PROMPT,
 }
 
 
-def _build_design_prompt(slide: dict, brief: dict) -> str:
+def _truncate_content(content: str, max_chars: int = 400) -> str:
+    """Truncate content hints to stay under Nano Banana's text limit."""
+    if len(content) <= max_chars:
+        return content
+    lines = content.split("\n")
+    result = []
+    total = 0
+    for line in lines:
+        if total + len(line) > max_chars:
+            break
+        result.append(line)
+        total += len(line) + 1
+    return "\n".join(result)
+
+
+def _build_design_prompt(
+    slide: dict,
+    brief: dict,
+    reference_image: bool = False,
+) -> str:
     """Build Nano Banana prompt for slide design generation.
 
-    Selects a type-specific template for better design output.
+    Uses ICS framework (Image type + Content + Style) with shared visual identity.
+    Embeds actual content text in double quotes for accurate Korean text rendering.
     """
     style = brief.get("style", {})
     slide_type = slide["type"]
 
+    # Build rich content hints from available data
     key_points = slide.get("key_points", [])
-    content_hints = "\n".join(f"- {pt}" for pt in key_points) if key_points else "General content"
+    content_parts = []
 
+    # Include topic context
+    if brief.get("purpose"):
+        content_parts.append(f"프레젠테이션 목적: {brief['purpose']}")
+    if brief.get("key_message"):
+        content_parts.append(f'핵심 메시지: "{brief["key_message"]}"')
+
+    # Include actual key points in double quotes (Nano Banana renders these accurately)
+    if key_points:
+        content_parts.append("포함할 항목:")
+        for i, pt in enumerate(key_points, 1):
+            content_parts.append(f'  {i}. "{pt}"')
+
+    # Include data for data visualization slides
     data = slide.get("data")
     if data:
-        content_hints += f"\n- Data: {data}"
+        content_parts.append(f"데이터: {data}")
 
+    # Include design direction
+    design_dir = slide.get("design_direction", "")
+    if design_dir:
+        content_parts.append(f"디자인 방향: {design_dir}")
+
+    content_hints = "\n".join(content_parts) if content_parts else f'주제: "{slide["topic"]}"'
+    content_hints = _truncate_content(content_hints)
+
+    # Build visual identity with actual colors
+    primary = style.get("primary_color", "#6366F1")
+    accent = style.get("accent_color", "#818CF8")
+
+    visual_identity = VISUAL_IDENTITY.format(
+        primary_color=primary,
+        accent_color=accent,
+    )
+
+    # Add style reference instruction when a reference image is attached
+    if reference_image:
+        visual_identity = """## Style Reference (CRITICAL)
+The attached image is the COVER slide of this presentation.
+You MUST match its visual style exactly: same color palette, typography weight,
+card corner radius, shadow depth, background color, and decorative elements.
+Maintain this consistent look while adapting the layout to the current slide type.
+
+""" + visual_identity
+
+    # Select template
     template = TYPE_PROMPT_MAP.get(slide_type, GENERIC_PROMPT)
 
     format_kwargs = {
         "topic": slide["topic"],
-        "design_direction": slide.get("design_direction", "Professional layout"),
-        "primary_color": style.get("primary_color", "#6366F1"),
-        "accent_color": style.get("accent_color", "#818CF8"),
-        "text_color": style.get("text_color", "#333333"),
+        "design_direction": design_dir or "Professional layout",
+        "primary_color": primary,
+        "accent_color": accent,
+        "text_color": style.get("text_color", "#1A202C"),
         "content_hints": content_hints,
+        "visual_identity": visual_identity,
     }
 
     # GENERIC_PROMPT uses slide_type, others don't
@@ -550,15 +563,66 @@ def _build_design_prompt(slide: dict, brief: dict) -> str:
     return template.format(**format_kwargs)
 
 
-async def design_generator(state: DesignGeneratorState) -> dict:
-    """Generate design image for a single slide via Nano Banana."""
+# Slide types that benefit from Gemini's Thinking mode (complex layouts)
+COMPLEX_SLIDE_TYPES = {
+    "data_visualization", "process_flow", "comparison",
+    "risk_analysis", "action_plan", "timeline", "cover",
+}
+
+
+async def cover_design_generator(state: DesignGeneratorState) -> dict:
+    """Generate cover slide design FIRST — its image becomes the style reference for all other slides."""
+    from core.config import GEMINI_THINKING_BUDGET
+
     slide = state["slide_plan"]
     brief = state["research_brief"]
 
-    prompt = _build_design_prompt(slide, brief)
+    prompt = _build_design_prompt(slide, brief, reference_image=False)
 
-    logger.info("[DesignGen] START %s (%s) - prompt: %d chars", slide["slide_id"], slide["type"], len(prompt))
-    image_b64 = await generate_slide_image(prompt, aspect_ratio="16:9")
+    logger.info("[DesignGen:Cover] START %s - prompt: %d chars", slide["slide_id"], len(prompt))
+    image_b64 = await generate_slide_image(
+        prompt,
+        aspect_ratio="16:9",
+        thinking_budget=GEMINI_THINKING_BUDGET,
+    )
+
+    if image_b64:
+        logger.info("[DesignGen:Cover] SUCCESS - image size: %d bytes", len(image_b64))
+    else:
+        logger.warning("[DesignGen:Cover] FAILED - no image")
+
+    return {
+        "slide_designs": [{
+            "slide_id": slide["slide_id"],
+            "type": slide["type"],
+            "image_b64": image_b64,
+            "design_prompt": prompt,
+        }],
+        "cover_design_image": image_b64 or "",
+    }
+
+
+async def design_generator(state: DesignGeneratorState) -> dict:
+    """Generate design image for a non-cover slide, using cover as style reference."""
+    from core.config import GEMINI_THINKING_BUDGET
+
+    slide = state["slide_plan"]
+    brief = state["research_brief"]
+    ref_image = state.get("reference_image_b64") or None
+
+    prompt = _build_design_prompt(slide, brief, reference_image=bool(ref_image))
+
+    thinking = GEMINI_THINKING_BUDGET if slide["type"] in COMPLEX_SLIDE_TYPES else None
+
+    logger.info("[DesignGen] START %s (%s) - prompt: %d chars, ref=%s, think=%s",
+                slide["slide_id"], slide["type"], len(prompt), bool(ref_image), thinking)
+
+    image_b64 = await generate_slide_image(
+        prompt,
+        aspect_ratio="16:9",
+        reference_image_b64=ref_image,
+        thinking_budget=thinking,
+    )
 
     if image_b64:
         logger.info("[DesignGen] SUCCESS %s - image size: %d bytes", slide["slide_id"], len(image_b64))

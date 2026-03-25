@@ -40,6 +40,7 @@ DEFAULT_LLM = os.getenv("DEFAULT_LLM", "claude")
 MAX_REVISIONS = int(os.getenv("MAX_REVISIONS", "3"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0"))
 MAX_TOKENS = 8192
+GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "1024"))
 
 # Validator Service
 VALIDATOR_URL = os.getenv("VALIDATOR_URL", "http://validator:8001")
