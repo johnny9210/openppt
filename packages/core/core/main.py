@@ -47,6 +47,10 @@ class HumanReviewRequest(BaseModel):
     action: str  # "retry" | "approve" | "abort"
 
 
+class ImageExportRequest(BaseModel):
+    slide_images: list[str]  # base64 PNG images
+
+
 # --- MongoDB session helpers ---
 
 async def save_session(session_id: str, state_values: dict) -> None:
@@ -282,8 +286,8 @@ async def get_session(session_id: str):
 
 
 @app.get("/api/export/pptx/{session_id}")
-async def export_pptx(session_id: str):
-    """Export session result as a .pptx file (reads from MongoDB)."""
+async def export_pptx_get(session_id: str):
+    """Export session result as a .pptx file (text-based fallback)."""
     from core.export.pptx_exporter import export_pptx as generate_pptx
 
     session = await load_session(session_id)
@@ -303,7 +307,33 @@ async def export_pptx(session_id: str):
         logger.error("PPTX export failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
-    # Build filename from presentation title
+    return _pptx_response(buf, slide_spec)
+
+
+@app.post("/api/export/pptx/{session_id}")
+async def export_pptx_post(session_id: str, body: ImageExportRequest):
+    """Export PPTX using captured slide images from Preview."""
+    from core.export.pptx_exporter import export_pptx_from_images
+
+    session = await load_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    slide_spec = session.get("slide_spec", {})
+    if not slide_spec:
+        raise HTTPException(status_code=400, detail="No slide spec available")
+
+    try:
+        buf = export_pptx_from_images(slide_spec, body.slide_images)
+    except Exception as e:
+        logger.error("PPTX image export failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+    return _pptx_response(buf, slide_spec)
+
+
+def _pptx_response(buf, slide_spec: dict) -> StreamingResponse:
+    """Build a StreamingResponse for a PPTX buffer."""
     title = (
         slide_spec
         .get("ppt_state", {})

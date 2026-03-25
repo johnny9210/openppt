@@ -418,17 +418,29 @@ TYPE_COMPONENT_MAP = {
 }
 
 
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """Convert hex color to rgba string."""
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def code_assembly(state: PPTState) -> dict:
     """Assemble individual slide codes into a complete React component."""
     # Read theme from research_brief.style (new architecture)
     style = state.get("research_brief", {}).get("style", {})
     generated_slides = state["generated_slides"]
 
+    primary = style.get("primary_color", "#6366F1")
+    accent = style.get("accent_color", "#818CF8")
+
     # Build theme object with light design tokens
     theme_obj = json.dumps(
         {
-            "primary": style.get("primary_color", "#6366F1"),
-            "accent": style.get("accent_color", "#818CF8"),
+            "primary": primary,
+            "accent": accent,
             "background": style.get("background", "#F5F7FA"),
             "text": style.get("text_color", "#1A202C"),
             "textSecondary": "#64748B",
@@ -438,10 +450,17 @@ def code_assembly(state: PPTState) -> dict:
             "card": "#FFFFFF",
             "cardBorder": "#E2E8F0",
             "cardShadow": "0 2px 8px rgba(0,0,0,0.06)",
-            "iconBg1": style.get("primary_color", "#6366F1"),
-            "iconBg2": style.get("accent_color", "#818CF8"),
-            "subtleBg": "rgba(99,102,241,0.06)",
+            "iconBg1": primary,
+            "iconBg2": accent,
+            "subtleBg": _hex_to_rgba(primary, 0.06),
             "divider": "#E2E8F0",
+            # — 고도화 토큰 —
+            "primaryLight": _hex_to_rgba(primary, 0.08),
+            "accentLight": _hex_to_rgba(accent, 0.08),
+            "primaryMedium": _hex_to_rgba(primary, 0.15),
+            "shadow_sm": "0 1px 3px rgba(0,0,0,0.04)",
+            "shadow_lg": "0 12px 40px rgba(0,0,0,0.10)",
+            "gradient": f"linear-gradient(135deg, {primary}, {accent})",
         },
         indent=2,
     )

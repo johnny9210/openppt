@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 
 interface SlideCode {
   slide_id: string;
@@ -13,6 +13,11 @@ interface SlidePreviewProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   spec?: Record<string, any> | null;
   slideCodes?: Record<string, SlideCode>;
+}
+
+export interface SlidePreviewHandle {
+  getIframe: () => HTMLIFrameElement | null;
+  getSlideCount: () => number;
 }
 
 /**
@@ -34,12 +39,82 @@ const TYPE_LABELS: Record<string, string> = {
   action_plan: "실행 계획",
 };
 
-export default function SlidePreview({ code, spec, slideCodes }: SlidePreviewProps) {
+/**
+ * Capture all slides as PNG images from the iframe.
+ * Navigates to each slide, waits for render, captures via html2canvas.
+ */
+export async function captureAllSlides(
+  iframeEl: HTMLIFrameElement,
+  totalSlides: number,
+  onProgress?: (current: number, total: number) => void,
+): Promise<string[]> {
+  const images: string[] = [];
+
+  // First check if html2canvas is available by doing a test capture
+  const testResult = await new Promise<string>((resolve) => {
+    const timeout = setTimeout(() => resolve(""), 5000);
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "captureResult" && e.data.index === -1) {
+        window.removeEventListener("message", handler);
+        clearTimeout(timeout);
+        resolve(e.data.dataUrl as string);
+      }
+    };
+    window.addEventListener("message", handler);
+    iframeEl.contentWindow?.postMessage({ type: "captureSlide", index: -1 }, "*");
+  });
+
+  if (!testResult) {
+    console.warn("[captureAllSlides] html2canvas not available in iframe");
+    return [];
+  }
+
+  for (let i = 0; i < totalSlides; i++) {
+    onProgress?.(i, totalSlides);
+
+    // Navigate to slide
+    iframeEl.contentWindow?.postMessage({ type: "goToSlide", index: i }, "*");
+
+    // Wait for slide transition + React re-render
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Request capture
+    const dataUrl = await new Promise<string>((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn(`[captureAllSlides] Slide ${i} capture timeout`);
+        resolve("");
+      }, 15000);
+
+      const handler = (e: MessageEvent) => {
+        if (e.data?.type === "captureResult" && e.data.index === i) {
+          window.removeEventListener("message", handler);
+          clearTimeout(timeout);
+          resolve(e.data.dataUrl as string);
+        }
+      };
+      window.addEventListener("message", handler);
+      iframeEl.contentWindow?.postMessage({ type: "captureSlide", index: i }, "*");
+    });
+
+    // Extract base64 from data URL (remove "data:image/png;base64," prefix)
+    const b64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+    images.push(b64);
+  }
+
+  return images;
+}
+
+const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function SlidePreview({ code, spec, slideCodes }, ref) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState<number>(0);
 
   const slideIds = slideCodes ? Object.keys(slideCodes).sort() : [];
+
+  useImperativeHandle(ref, () => ({
+    getIframe: () => iframeRef.current,
+    getSlideCount: () => slideIds.length,
+  }));
 
   useEffect(() => {
     if (!code || !iframeRef.current) return;
@@ -140,7 +215,7 @@ export default function SlidePreview({ code, spec, slideCodes }: SlidePreviewPro
           )}
           <iframe
             ref={iframeRef}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-same-origin"
             className="w-full h-full border-0"
             title="Slide Preview"
           />
@@ -148,7 +223,9 @@ export default function SlidePreview({ code, spec, slideCodes }: SlidePreviewPro
       </div>
     </div>
   );
-}
+});
+
+export default SlidePreview;
 
 /**
  * Strip import/export statements from generated code so it can run
@@ -321,11 +398,48 @@ function buildPreviewHTML(code: string, spec: Record<string, any>): string {
       if (e.data && e.data.type === "goToSlide" && typeof e.data.index === "number") {
         if (window.__goToSlide) window.__goToSlide(e.data.index);
       }
+      if (e.data && e.data.type === "captureSlide" && typeof e.data.index === "number") {
+        captureCurrentSlide(e.data.index);
+      }
     });
+
+    function captureCurrentSlide(index) {
+      var root = document.getElementById("root");
+      if (typeof html2canvas === "undefined") {
+        console.warn("[capture] html2canvas not available, index:", index);
+        window.parent.postMessage({ type: "captureResult", index: index, dataUrl: "" }, "*");
+        return;
+      }
+      if (!root) {
+        window.parent.postMessage({ type: "captureResult", index: index, dataUrl: "" }, "*");
+        return;
+      }
+      // Test capture (index -1): just confirm html2canvas is available
+      if (index === -1) {
+        window.parent.postMessage({ type: "captureResult", index: -1, dataUrl: "ok" }, "*");
+        return;
+      }
+      console.log("[capture] Starting capture for slide", index, "root size:", root.offsetWidth, "x", root.offsetHeight);
+      html2canvas(root, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: null,
+        width: root.offsetWidth,
+        height: root.offsetHeight,
+        logging: false,
+      }).then(function(canvas) {
+        var dataUrl = canvas.toDataURL("image/png");
+        console.log("[capture] Slide", index, "captured, size:", dataUrl.length);
+        window.parent.postMessage({ type: "captureResult", index: index, dataUrl: dataUrl }, "*");
+      }).catch(function(err) {
+        console.error("[capture] Failed for slide", index, err);
+        window.parent.postMessage({ type: "captureResult", index: index, dataUrl: "" }, "*");
+      });
+    }
 
     // --- CDN Script Loader with Error Handling ---
     var __cdnErrors = [];
-    var __scriptsLoaded = { react: false, reactDom: false, propTypes: false, recharts: false, babel: false };
+    var __scriptsLoaded = { react: false, reactDom: false, propTypes: false, recharts: false, babel: false, html2canvas: false };
 
     function showError(type, title, message, stack) {
       var el = document.getElementById("error");
@@ -382,6 +496,9 @@ function buildPreviewHTML(code: string, spec: Record<string, any>): string {
       .then(function() {
         hideLoading();
         runGeneratedCode();
+        // Load html2canvas separately (non-blocking, optional for slide capture)
+        loadScript("https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js", "html2canvas")
+          .catch(function() { console.warn("html2canvas failed to load - slide capture disabled"); });
       })
       .catch(function(err) {
         hideLoading();

@@ -84,6 +84,31 @@ export async function downloadPptx(sessionId: string): Promise<void> {
     throw new Error(err.detail || `Export error: ${response.status}`);
   }
 
+  _triggerBlobDownload(response);
+}
+
+/**
+ * Export PPTX with captured slide images (matches Preview exactly).
+ */
+export async function downloadPptxWithImages(
+  sessionId: string,
+  slideImages: string[],
+): Promise<void> {
+  const response = await fetch(`${API_URL}/api/export/pptx/${sessionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slide_images: slideImages }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Export failed" }));
+    throw new Error(err.detail || `Export error: ${response.status}`);
+  }
+
+  _triggerBlobDownload(response);
+}
+
+async function _triggerBlobDownload(response: Response) {
   const blob = await response.blob();
   const disposition = response.headers.get("Content-Disposition");
   let filename = "presentation.pptx";

@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ChatInput from "@/components/chat/ChatInput";
 import ProgressBar from "@/components/chat/ProgressBar";
-import SlidePreview from "@/components/preview/SlidePreview";
+import SlidePreview, { captureAllSlides } from "@/components/preview/SlidePreview";
+import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
 import { useStore } from "@/lib/store";
-import { downloadPptx } from "@/lib/api";
+import { downloadPptxWithImages, downloadPptx } from "@/lib/api";
 
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
   const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
+  const previewRef = useRef<SlidePreviewHandle>(null);
   const { reactCode, slideCodes, slideSpec, isGenerating, progressSteps, validationResult, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
@@ -20,12 +23,37 @@ export default function EditorPage() {
     if (!sessionId || isExporting) return;
     setIsExporting(true);
     try {
-      await downloadPptx(sessionId);
+      const iframe = previewRef.current?.getIframe();
+      const total = previewRef.current?.getSlideCount() || 0;
+
+      if (iframe && total > 0) {
+        // Capture slides from Preview
+        setExportStatus(`슬라이드 캡처 준비 중...`);
+        const images = await captureAllSlides(iframe, total, (current, t) => {
+          setExportStatus(`슬라이드 캡처 중... (${current + 1}/${t})`);
+        });
+        const validImages = images.filter((img) => img.length > 0);
+        console.log(`[export] Captured ${validImages.length}/${total} slides`);
+
+        if (validImages.length > 0) {
+          setExportStatus("PPTX 생성 중...");
+          await downloadPptxWithImages(sessionId, validImages);
+        } else {
+          // Fallback to text-based export
+          console.warn("[export] No valid captures, falling back to text-based export");
+          setExportStatus("텍스트 기반 내보내기...");
+          await downloadPptx(sessionId);
+        }
+      } else {
+        // Fallback
+        await downloadPptx(sessionId);
+      }
     } catch (err) {
       console.error("PPTX export failed:", err);
       alert(`다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setIsExporting(false);
+      setExportStatus("");
     }
   };
 
@@ -63,7 +91,7 @@ export default function EditorPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  내보내는 중...
+                  {exportStatus || "내보내는 중..."}
                 </>
               ) : (
                 <>
@@ -120,7 +148,7 @@ export default function EditorPage() {
           {/* Content */}
           <div className="flex-1 overflow-hidden">
             {activeTab === "preview" ? (
-              <SlidePreview code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
+              <SlidePreview ref={previewRef} code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
             ) : (
               <CodeViewer code={reactCode} slideCodes={slideCodes} />
             )}
