@@ -4,12 +4,12 @@ import { useState, useRef } from "react";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatHistory from "@/components/chat/ChatHistory";
 import ProgressBar from "@/components/chat/ProgressBar";
-import SlidePreview, { captureAllSlides } from "@/components/preview/SlidePreview";
+import SlidePreview from "@/components/preview/SlidePreview";
 import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
 import DesignViewer from "@/components/design/DesignViewer";
 import { useStore } from "@/lib/store";
-import { downloadPptxWithImages, downloadPptx } from "@/lib/api";
+import { downloadPptx } from "@/lib/api";
 
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"preview" | "code" | "design">("preview");
@@ -25,31 +25,8 @@ export default function EditorPage() {
     if (!sessionId || isExporting) return;
     setIsExporting(true);
     try {
-      const iframe = previewRef.current?.getIframe();
-      const total = previewRef.current?.getSlideCount() || 0;
-
-      if (iframe && total > 0) {
-        // Capture slides from Preview
-        setExportStatus(`슬라이드 캡처 준비 중...`);
-        const images = await captureAllSlides(iframe, total, (current, t) => {
-          setExportStatus(`슬라이드 캡처 중... (${current + 1}/${t})`);
-        });
-        const validImages = images.filter((img) => img.length > 0);
-        console.log(`[export] Captured ${validImages.length}/${total} slides`);
-
-        if (validImages.length > 0) {
-          setExportStatus("PPTX 생성 중...");
-          await downloadPptxWithImages(sessionId, validImages);
-        } else {
-          // Fallback to text-based export
-          console.warn("[export] No valid captures, falling back to text-based export");
-          setExportStatus("텍스트 기반 내보내기...");
-          await downloadPptx(sessionId);
-        }
-      } else {
-        // Fallback
-        await downloadPptx(sessionId);
-      }
+      setExportStatus("PPTX 다운로드 중...");
+      await downloadPptx(sessionId);
     } catch (err) {
       console.error("PPTX export failed:", err);
       alert(`다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`);
