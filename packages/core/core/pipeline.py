@@ -227,7 +227,7 @@ async def progress_code_synthesizer(state: PPTState) -> dict:
     writer({
         "phase": 3,
         "step": "code_synthesizer",
-        "message": "디자인 이미지 + 텍스트 -> React 코드 합성 중...",
+        "message": "2-Pass 코드 합성 중... (Pass1: 레이아웃 → Pass2: 텍스트 삽입)",
     })
     result = await code_synthesizer(state)
     count = len(result.get("generated_slides", []))

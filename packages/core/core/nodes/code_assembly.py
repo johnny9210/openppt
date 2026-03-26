@@ -20,9 +20,6 @@ import {{
 
 // ── Design System Theme ──────────────────────────────
 const THEME = {theme_obj};
-
-// ── Slide Background Images (from Nano Banana) ──────
-const SLIDE_IMAGES = {slide_images_obj};
 '''
 
 TEMPLATE_FACTORY = '''
@@ -32,7 +29,7 @@ const SlideFactory = ({{ slide }}) => {{
 {slide_map}
   }};
   const Component = map[slide.slide_id];
-  return Component ? <Component {{...slide}} designImage={{SLIDE_IMAGES[slide.slide_id]}} /> : null;
+  return Component ? <Component {{...slide}} /> : null;
 }};
 '''
 
@@ -468,23 +465,9 @@ def code_assembly(state: PPTState) -> dict:
         indent=2,
     )
 
-    # Build slide images map from design_generator output
-    designs_map = {}
-    for d in state.get("slide_designs", []):
-        sid = d.get("slide_id")
-        img = d.get("image_b64")
-        if sid and img:
-            designs_map[sid] = f"data:image/png;base64,{img}"
-
-    slide_images_obj = json.dumps(
-        {sid: url for sid, url in designs_map.items()},
-        indent=2,
-    ) if designs_map else "{}"
-
     # Build header
     header = TEMPLATE_HEADER.format(
         theme_obj=theme_obj,
-        slide_images_obj=slide_images_obj,
     )
 
     # Deduplicate by slide_id (keep latest on retries, since operator.add appends)

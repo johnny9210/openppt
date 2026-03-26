@@ -1,7 +1,11 @@
 """
-Phase 3: Code Synthesizer
-Merges design images + text content -> React components via Claude vision.
-Runs after both text_generator and design_generator fan-in.
+Phase 3: Code Synthesizer (2-Pass Architecture)
+Pass 1 (Vision): Design image -> React/CSS layout code (structure only, no text)
+Pass 2 (Code):   Layout code + text content -> Final React component with text
+
+Separates layout generation from text insertion to eliminate text
+positioning errors. Claude Vision focuses on visual structure in Pass 1,
+then Claude precisely inserts text into the established layout in Pass 2.
 """
 
 import asyncio
@@ -34,11 +38,13 @@ COMPONENT_NAMES = {
     "closing": "ClosingSlide",
 }
 
-SYNTHESIZER_SYSTEM_PROMPT = """당신은 디자인 이미지를 배경으로 사용하고 텍스트를 오버레이하는 React 슬라이드 컴포넌트를 만드는 전문 개발자입니다.
 
-★ 핵심: 디자인 이미지가 모든 시각적 요소(카드, 아이콘, 장식, 색상)를 담당합니다.
-당신은 CSS로 시각 디자인을 재현하지 않습니다.
-당신은 이미지 위에 텍스트만 정확한 위치에 오버레이합니다.
+# ── Pass 1: Layout Generation (Vision -> CSS) ─────────────────
+
+LAYOUT_SYSTEM_PROMPT = """당신은 디자인 이미지를 React 인라인 스타일 코드로 변환하는 전문 개발자입니다.
+
+★ 핵심 임무: 디자인 이미지의 시각적 구조를 React/CSS 코드로 정확히 재현합니다.
+텍스트 콘텐츠는 렌더링하지 않습니다 — 텍스트가 들어갈 구조만 잡아둡니다.
 
 <output_rules>
 ★ 최우선 규칙: const로 시작하는 순수 React 컴포넌트 코드만 출력하세요.
@@ -46,128 +52,131 @@ SYNTHESIZER_SYSTEM_PROMPT = """당신은 디자인 이미지를 배경으로 사
 코드 블록(```)으로 감싸는 것은 허용합니다.
 </output_rules>
 
-<architecture>
-## 컴포넌트 구조
+<task>
+## 재현할 요소
+1. **레이아웃 구조**: 카드 배치(grid, flex), 간격, 패딩, 마진 — 이미지와 최대한 동일하게
+2. **카드 스타일**: 배경색, border-radius, box-shadow, 테두리
+3. **아이콘 배지**: 원형 배지의 크기, 색상, 위치 — 이모지는 플레이스홀더("●")로
+4. **장식 요소**: 액센트 바, 배경 패턴, 그라데이션, 화살표, 연결선
+5. **색상**: THEME 토큰으로 이미지의 색상 팔레트를 재현
 
-모든 슬라이드 컴포넌트는 이 구조를 따릅니다:
+## 텍스트 처리 규칙
+- content props를 구조분해하여 받되, 텍스트를 직접 렌더링하지 마세요
+- 배열 데이터는 map()으로 반복 구조를 잡되, 내부에 텍스트를 렌더링하지 마세요
+- 텍스트가 들어갈 자리에는 적절한 높이/여백을 가진 빈 영역을 만드세요
 
+## 예시
 ```jsx
-const SlideComponent = ({ content, slide_id, designImage }) => {
-  // designImage: SLIDE_IMAGES[slide_id] (base64 data URL, 전역에서 전달)
-  const bgImage = designImage || SLIDE_IMAGES[slide_id];
-
+const KeyPointsSlide = ({ content }) => {
+  const points = content.points || [];
   return (
-    <div style={{
-      width: "100%", height: "100%", position: "relative",
-      backgroundImage: bgImage ? `url(${bgImage})` : undefined,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      backgroundColor: bgImage ? undefined : THEME.background,
-    }}>
-      {/* 텍스트 오버레이만 여기에 배치 */}
+    <div style={{ height: "100%", background: THEME.background, padding: "48px 60px" }}>
+      {/* 제목 영역 */}
+      <div style={{ textAlign: "center", marginBottom: 8 }} />
+      <div style={{ width: 48, height: 4, borderRadius: 2, background: THEME.primary, margin: "0 auto 32px" }} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, maxWidth: 800, margin: "0 auto" }}>
+        {points.map((_, i) => (
+          <div key={i} style={{
+            background: THEME.card, borderRadius: 16, padding: "24px 20px",
+            boxShadow: THEME.cardShadow, border: `1px solid ${THEME.cardBorder}`,
+            display: "flex", alignItems: "flex-start", gap: 16,
+          }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: "50%", flexShrink: 0,
+              background: i % 2 === 0 ? THEME.iconBg1 : THEME.iconBg2,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, color: "#fff",
+            }}>{"●"}</div>
+            <div style={{ flex: 1 }}>
+              {/* 텍스트 삽입 영역 */}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 ```
-
-### 텍스트 오버레이 원칙
-1. 모든 텍스트는 `position: "absolute"` 또는 부모 flex 안에서 배치
-2. 디자인 이미지의 레이아웃을 보고, 빈 공간에 텍스트를 정확히 위치시킴
-3. 텍스트 가독성: `textShadow: "0 1px 3px rgba(0,0,0,0.1)"` 또는 반투명 배경 사용 가능
-4. content props에서 모든 데이터를 동적으로 읽기 (하드코딩 금지)
-5. 반복 패턴은 map()으로 렌더링
-</architecture>
+</task>
 
 <constraints>
-## 기술 제약사항
-- 컴포넌트 이름은 반드시 [컴포넌트 이름]에 지정된 이름을 const로 선언
+- 컴포넌트 이름은 반드시 지정된 이름으로 const 선언
 - import 문 작성 금지 (이미 상위에서 import됨)
 - const THEME = ... 재선언 금지 (이미 전역)
-- SLIDE_IMAGES는 전역 상수 (재선언 금지) — slide_id로 이미지 조회
+- SLIDE_IMAGES 참조 금지 — 이미지를 배경으로 사용하지 않음, CSS로 직접 구현
+- height: "100%" 필수
 - JSX 텍스트 안에서 < > 직접 사용 금지 → {"<"} 또는 &lt; &gt;
 - 템플릿 리터럴 안 삼항 연산자: ${조건 ? 값A : 값B} (: 생략 금지)
 - ★ 중첩 삼항 금지. 조건부 렌더링은 단순하게
 </constraints>
 
-<text_positioning>
-## 슬라이드 타입별 텍스트 위치 가이드
-
-이미지를 보고 빈 공간의 위치를 판단하세요. 일반적인 배치:
-
-### cover
-- 제목: left 5-8%, top 20-30%, fontSize 40-48, fontWeight 800, color THEME.text
-- 부제목: left 5-8%, top 45-50%, fontSize 18, color THEME.textSecondary
-- 발표자/날짜: left 5-8%, bottom 10-15%, fontSize 13, color THEME.textSecondary
-
-### table_of_contents
-- 제목: center-top, top 5-8%, fontSize 28-32, fontWeight 800
-- 항목: 이미지의 카드 위치에 맞춰 절대 좌표로 배치
-
-### key_points / icon_grid / three_column
-- 제목: center-top, top 4-6%, fontSize 28-32, fontWeight 800
-- 카드 텍스트: 이미지의 카드 영역 안에 배치 (카드 좌측 40%는 아이콘, 우측 60%에 텍스트)
-
-### hero
-- 메인 텍스트: center, top 30-40%, fontSize 48-56, fontWeight 800
-
-### quote
-- 인용문: center, top 30-45%, fontSize 24-28, fontWeight 600
-
-### process_flow / timeline
-- 제목: center-top
-- 단계 텍스트: 이미지의 각 카드 위치에 맞춰 배치
-
-### data_visualization
-- ★ 특수 케이스: 이미지 배경 없이 recharts로 직접 렌더링할 수 있음
-- 이미지가 있으면: 제목 + 인사이트만 오버레이, 차트는 이미지에 포함
-- 이미지가 없으면: THEME 기반으로 직접 차트 렌더링 (기존 방식)
-
-### comparison
-- 제목: center-top
-- 좌측/우측 카드 내부에 텍스트 배치
-
-### risk_analysis
-- 제목: center-top
-- 각 카드 내부에 severity + title + description 배치
-
-### summary / closing
-- 제목: center-top
-- 항목 텍스트: 이미지의 카드 영역에 맞춰 배치
-</text_positioning>
-
-<fallback>
-## 이미지 없을 때 (fallback)
-designImage가 없으면 기존 방식으로 React CSS 기반 슬라이드를 생성하세요:
-- backgroundColor: THEME.background
-- THEME 토큰 활용한 카드, 배지, 타이포그래피
-- 인라인 스타일로 전체 디자인
-</fallback>
-
 <theme_tokens>
-## THEME 토큰 (전역, 재선언 금지)
 THEME.primary, THEME.accent, THEME.background, THEME.text, THEME.textSecondary
 THEME.card, THEME.cardBorder, THEME.cardShadow, THEME.shadow_sm, THEME.shadow_lg
 THEME.iconBg1, THEME.iconBg2, THEME.primaryLight, THEME.accentLight
 THEME.gradient, THEME.subtleBg, THEME.divider
 THEME.red, THEME.yellow, THEME.green
-</theme_tokens>
+</theme_tokens>"""
+
+
+# ── Pass 2: Text Insertion (Code -> Code) ─────────────────────
+
+TEXT_INSERT_SYSTEM_PROMPT = """당신은 React 슬라이드 컴포넌트에 텍스트 콘텐츠를 삽입하는 전문 개발자입니다.
+
+★ 핵심 임무: 주어진 레이아웃 코드의 빈 영역에 텍스트 콘텐츠를 삽입하고, 스타일을 미세 조정합니다.
+
+<output_rules>
+★ 최우선 규칙: const로 시작하는 순수 React 컴포넌트 코드만 출력하세요.
+코드 외의 모든 텍스트를 절대 출력하지 마세요.
+코드 블록(```)으로 감싸는 것은 허용합니다.
+</output_rules>
+
+<task>
+## 해야 할 것
+1. **레이아웃 유지**: 기존 코드의 카드 배치, 그리드, 색상, 스타일을 그대로 유지
+2. **텍스트 삽입**: 빈 영역 / 주석 위치에 content props의 데이터를 렌더링
+3. **동적 바인딩**: 모든 텍스트는 content props에서 읽기 (하드코딩 금지)
+4. **아이콘/이모지**: "●" 플레이스홀더를 실제 이모지(content에서 읽기)로 교체
+5. **반복 렌더링**: 배열 데이터는 기존 map() 구조 안에서 텍스트 추가
+6. **가독성 확보**: 배경 대비 텍스트 가독성 보장
+
+## 텍스트 스타일 가이드
+- 메인 제목: fontSize 28-44, fontWeight 800, color THEME.text
+- 부제목/설명: fontSize 14-18, color THEME.textSecondary, lineHeight 1.5
+- 카드 제목: fontSize 16-18, fontWeight 600, color THEME.text
+- 카드 설명: fontSize 12-14, color THEME.textSecondary, lineHeight 1.5
+- 강조 수치/메트릭: fontSize 20-24, fontWeight 700, color THEME.primary
+- 라벨/태그: fontSize 11-13, fontWeight 500
+</task>
+
+<do_not>
+## 하지 말 것
+- 레이아웃 구조 변경 (카드 수, 그리드 컬럼 수, 전체 패딩 등)
+- 새로운 시각 요소 추가 (카드, 아이콘 배지 등 추가 금지)
+- 기존 CSS 스타일 대폭 변경 (색상, 그림자, border-radius 등)
+- 컴포넌트 이름 변경
+- import 문 추가
+- const THEME 재선언
+</do_not>
+
+<constraints>
+- 컴포넌트 이름 유지
+- import 문 작성 금지
+- const THEME = ... 재선언 금지
+- height: "100%" 유지
+- JSX 텍스트 안에서 < > 직접 사용 금지
+- 템플릿 리터럴 안 삼항 연산자: ${조건 ? 값A : 값B} (: 생략 금지)
+- ★ 중첩 삼항 금지
+- 코드 블록(```)으로 감싸는 것은 허용합니다
+</constraints>
 
 <available_libraries>
-## 사용 가능
-- recharts (data_visualization용): BarChart, Bar, Cell, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 등
+- recharts: BarChart, Bar, Cell, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 등
 - React hooks: useState, useEffect
 - 유니코드 이모지
-</available_libraries>
+</available_libraries>"""
 
-<quality_gate>
-## 최종 품질 검증
-1. **BACKGROUND**: designImage가 있으면 backgroundImage로 설정했는가? 없으면 THEME.background 사용?
-2. **POSITIONING**: 텍스트가 이미지의 빈 공간에 정확히 배치되었는가?
-3. **READABILITY**: 텍스트가 배경 위에서 읽기 쉬운가? (색상 대비, 크기)
-4. **DATA BINDING**: content props에서 모든 데이터를 동적으로 읽는가?
-5. **NO CSS RECREATION**: 이미지가 있는데 카드/아이콘/장식을 CSS로 다시 만들지 않았는가?
-</quality_gate>"""
 
+# ── Code extraction helpers ───────────────────────────────────
 
 def _extract_code(text: str) -> str:
     """Extract code from LLM response, removing markdown fences, preamble text, and fixing common errors."""
@@ -248,7 +257,9 @@ def _fix_broken_ternaries(code: str) -> str:
     return code
 
 
-async def _synthesize_slide(
+# ── Pass 1: Layout Generation ────────────────────────────────
+
+async def _generate_layout(
     llm,
     slide_id: str,
     slide_type: str,
@@ -256,35 +267,34 @@ async def _synthesize_slide(
     content: dict,
     comp_name: str,
     style: dict,
-    slide_index: int = 0,
-    total_slides: int = 1,
-    fix_prompt: str = "",
-) -> dict:
-    """Synthesize React code for one slide from design image + content."""
-    content_json = json.dumps(content, ensure_ascii=False, indent=2)
-
+) -> str:
+    """Pass 1: Generate CSS layout code from design image (or from scratch if no image)."""
     user_parts = []
 
-    # Add design image if available
+    # Add design image for vision
     if image_b64:
         user_parts.append({
             "type": "image_url",
             "image_url": {"url": f"data:image/png;base64,{image_b64}"},
         })
 
-    # Determine slide role in narrative
-    if slide_index == 0:
-        narrative_role = "오프닝 — 청중의 주의를 끄는 강렬한 첫인상"
-    elif slide_index == total_slides - 1:
-        narrative_role = "클로징 — 핵심 메시지 정리 및 행동 유도"
-    elif slide_index == 1:
-        narrative_role = "도입부 — 전체 구조를 안내하는 가이드"
-    else:
-        narrative_role = "본론 — 핵심 콘텐츠 전달"
+    # Build content structure hint (for array sizes, field names — NOT text values)
+    structure_lines = []
+    for k, v in content.items():
+        if isinstance(v, list):
+            if v and isinstance(v[0], dict):
+                structure_lines.append(f"- {k}: 배열 ({len(v)}개), 각 항목 keys: {list(v[0].keys())}")
+            else:
+                structure_lines.append(f"- {k}: 배열 ({len(v)}개)")
+        elif isinstance(v, dict):
+            structure_lines.append(f"- {k}: 객체 (keys: {list(v.keys())})")
+        else:
+            structure_lines.append(f"- {k}: 단일 값")
+    structure_hint = "\n".join(structure_lines) if structure_lines else "없음"
 
     has_image = bool(image_b64)
 
-    text_prompt = f"""[슬라이드 정보]
+    prompt = f"""[슬라이드 정보]
 slide_id: {slide_id}
 type: {slide_type}
 컴포넌트 이름: {comp_name}  ← 반드시 이 이름으로 const 선언
@@ -295,55 +305,115 @@ accent: {style.get('accent_color', '#818CF8')}
 background: {style.get('background', '#F5F7FA')}
 text: {style.get('text_color', '#1A202C')}
 
-[콘텐츠 데이터 — content props에서 동적으로 읽어 렌더링]
-{content_json}
+[콘텐츠 구조 (반복 횟수 및 필드 참고용 — 텍스트 렌더링 금지)]
+{structure_hint}
 
-[이미지 배경 사용: {"YES" if has_image else "NO"}]
-{"위 디자인 이미지가 이 슬라이드의 배경으로 사용됩니다." if has_image else "디자인 이미지가 없으므로 THEME 기반으로 직접 디자인하세요."}
+{"[디자인 이미지 첨부됨]" if has_image else "[이미지 없음]"}
+{"이 이미지의 시각적 구조(카드 배치, 아이콘, 색상, 간격, 장식)를 React 인라인 스타일로 정확히 재현하세요." if has_image else f"'{slide_type}' 타입에 적합한 깔끔하고 전문적인 레이아웃을 THEME 기반으로 설계하세요."}
+텍스트는 넣지 마세요 — 레이아웃 구조만 코드로 만드세요."""
 
-{"★ 핵심 지시:" if has_image else ""}
-{"1. SLIDE_IMAGES[slide_id]를 backgroundImage로 사용 (designImage prop 또는 SLIDE_IMAGES[slide.slide_id])" if has_image else ""}
-{"2. 이미지의 빈 공간을 보고 텍스트를 position absolute로 정확히 배치" if has_image else ""}
-{"3. CSS로 카드/아이콘/장식을 다시 만들지 마세요 — 이미지에 이미 있습니다" if has_image else ""}
-{"4. content props에서 데이터를 읽어 텍스트만 오버레이" if has_image else ""}
-
-{"이미지 없이 THEME 기반 디자인:" if not has_image else ""}
-{"1. backgroundColor: THEME.background" if not has_image else ""}
-{"2. 카드, 아이콘 배지, 타이포그래피를 직접 구현" if not has_image else ""}
-{"3. 시각적 계층 (제목 > 내용 > 배경) 명확히 구분" if not has_image else ""}
-
-공통 요구사항:
-- content props에서 모든 데이터를 동적으로 읽어 렌더링 (하드코딩 금지)
-- height: "100%" 필수
-- 반복 패턴은 map()으로 렌더링
-"""
-    if fix_prompt:
-        text_prompt += f"""
-[이전 검증 피드백 - 반드시 반영]
-{fix_prompt}
-"""
-
-    user_parts.append({"type": "text", "text": text_prompt})
+    user_parts.append({"type": "text", "text": prompt})
 
     response = await llm.ainvoke([
-        SystemMessage(content=SYNTHESIZER_SYSTEM_PROMPT),
+        SystemMessage(content=LAYOUT_SYSTEM_PROMPT),
         HumanMessage(content=user_parts),
     ])
 
-    code = _extract_code(response.content)
+    layout_code = _extract_code(response.content)
+    logger.info("[Synth:Pass1] %s (%s) - layout: %d chars", slide_id, slide_type, len(layout_code))
+    return layout_code
+
+
+# ── Pass 2: Text Insertion ────────────────────────────────────
+
+async def _insert_text(
+    llm,
+    layout_code: str,
+    slide_id: str,
+    slide_type: str,
+    content: dict,
+    comp_name: str,
+    fix_prompt: str = "",
+) -> str:
+    """Pass 2: Insert text content into layout code. No vision needed."""
+    content_json = json.dumps(content, ensure_ascii=False, indent=2)
+
+    prompt = f"""[레이아웃 코드 — 구조를 유지하면서 텍스트를 삽입하세요]
+```jsx
+{layout_code}
+```
+
+[삽입할 콘텐츠 데이터 — content props에서 동적으로 읽어 렌더링]
+{content_json}
+
+[슬라이드 정보]
+slide_id: {slide_id}
+type: {slide_type}
+컴포넌트 이름: {comp_name}
+
+위 레이아웃 코드의 빈 영역에 콘텐츠 데이터를 삽입하세요.
+레이아웃 구조(카드 배치, 색상, 스타일)는 그대로 유지하고 텍스트와 이모지만 추가하세요."""
+
+    if fix_prompt:
+        prompt += f"""
+
+[이전 검증 피드백 — 반드시 반영]
+{fix_prompt}"""
+
+    response = await llm.ainvoke([
+        SystemMessage(content=TEXT_INSERT_SYSTEM_PROMPT),
+        HumanMessage(content=prompt),
+    ])
+
+    final_code = _extract_code(response.content)
+    logger.info("[Synth:Pass2] %s (%s) - final: %d chars", slide_id, slide_type, len(final_code))
+    return final_code
+
+
+# ── Slide synthesis (2-pass) ─────────────────────────────────
+
+async def _synthesize_slide(
+    llm,
+    slide_id: str,
+    slide_type: str,
+    image_b64: str | None,
+    content: dict,
+    comp_name: str,
+    style: dict,
+    fix_prompt: str = "",
+) -> dict:
+    """Synthesize React code for one slide using 2-pass architecture.
+
+    Pass 1 (Vision): Design image -> CSS layout code (structure only)
+    Pass 2 (Code):   Layout code + content -> Final component with text
+    """
+    # Pass 1: Generate layout from design image
+    layout_code = await _generate_layout(
+        llm, slide_id, slide_type, image_b64, content, comp_name, style,
+    )
+
+    # Pass 2: Insert text content into layout
+    final_code = await _insert_text(
+        llm, layout_code, slide_id, slide_type, content, comp_name, fix_prompt,
+    )
 
     return {
         "slide_id": slide_id,
         "type": slide_type,
-        "code": code,
+        "code": final_code,
     }
 
 
+# ── Main entry point ─────────────────────────────────────────
+
 async def code_synthesizer(state: PPTState) -> dict:
-    """Merge design images + text content -> React code via Claude vision.
+    """Merge design images + text content -> React code via 2-pass synthesis.
+
+    Pass 1: Claude Vision sees design image -> generates CSS layout code
+    Pass 2: Claude reads layout code + content -> inserts text precisely
 
     Runs after all text_generator and design_generator Send instances complete.
-    Uses asyncio.gather for parallel LLM calls within this node.
+    Uses asyncio.gather for parallel synthesis across slides.
     """
     llm = get_llm()
     brief = state.get("research_brief", {})
@@ -365,9 +435,8 @@ async def code_synthesizer(state: PPTState) -> dict:
     if failed_ids and fix_prompt:
         all_slide_ids = [sid for sid in all_slide_ids if sid in set(failed_ids)]
 
-    total_slides = len(all_slide_ids)
     tasks = []
-    for idx, sid in enumerate(all_slide_ids):
+    for sid in all_slide_ids:
         content_data = contents_map.get(sid, {})
         design_data = designs_map.get(sid, {})
         slide_type = content_data.get("type") or design_data.get("type", "unknown")
@@ -384,8 +453,6 @@ async def code_synthesizer(state: PPTState) -> dict:
                 content=content_data.get("content", {}),
                 comp_name=comp_name,
                 style=style,
-                slide_index=idx,
-                total_slides=total_slides,
                 fix_prompt=fix_prompt,
             )
         )
