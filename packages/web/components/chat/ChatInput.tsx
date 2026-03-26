@@ -15,6 +15,7 @@ export default function ChatInput() {
     setSessionId,
     setReactCode,
     setSlideCode,
+    setSlideDesign,
     setSlideSpec,
     setValidationResult,
     addProgressStep,
@@ -58,6 +59,15 @@ export default function ChatInput() {
               setSlideSpec(data.slide_spec as Record<string, unknown>);
               receivedSpec = true;
             }
+            break;
+          case "design":
+            setSlideDesign({
+              slide_id: data.slide_id as string,
+              type: data.type as string,
+              has_image: data.has_image as boolean,
+              image_b64: (data.image_b64 as string) || null,
+            });
+            setStatus(`디자인 수신: ${data.slide_id} (이미지: ${data.has_image ? "✓" : "✗"})`);
             break;
           case "slide":
             setSlideCode({

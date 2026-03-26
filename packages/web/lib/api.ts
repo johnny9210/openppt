@@ -67,15 +67,6 @@ export async function* streamGenerate(
   yield* flushEvent();
 }
 
-export async function submitHumanReview(sessionId: string, action: string) {
-  const response = await fetch(`${API_URL}/api/human-review`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, action }),
-  });
-  return response.json();
-}
-
 export async function downloadPptx(sessionId: string): Promise<void> {
   const response = await fetch(`${API_URL}/api/export/pptx/${sessionId}`);
 

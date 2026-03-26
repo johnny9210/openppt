@@ -6,15 +6,16 @@ import ProgressBar from "@/components/chat/ProgressBar";
 import SlidePreview, { captureAllSlides } from "@/components/preview/SlidePreview";
 import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
+import DesignViewer from "@/components/design/DesignViewer";
 import { useStore } from "@/lib/store";
 import { downloadPptxWithImages, downloadPptx } from "@/lib/api";
 
 export default function EditorPage() {
-  const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "code" | "design">("preview");
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const previewRef = useRef<SlidePreviewHandle>(null);
-  const { reactCode, slideCodes, slideSpec, isGenerating, progressSteps, validationResult, sessionId } = useStore();
+  const { reactCode, slideCodes, slideDesigns, slideSpec, isGenerating, progressSteps, validationResult, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
   const canExport = !!sessionId && !!reactCode && !isGenerating;
@@ -143,14 +144,31 @@ export default function EditorPage() {
             >
               Code
             </button>
+            <button
+              onClick={() => setActiveTab("design")}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === "design"
+                  ? "text-blue-500 border-b-2 border-blue-400"
+                  : "text-gray-400 hover:text-gray-500"
+              }`}
+            >
+              Design
+              {Object.keys(slideDesigns).length > 0 && (
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">
+                  {Object.values(slideDesigns).filter(d => d.has_image).length}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-hidden">
             {activeTab === "preview" ? (
               <SlidePreview ref={previewRef} code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
-            ) : (
+            ) : activeTab === "code" ? (
               <CodeViewer code={reactCode} slideCodes={slideCodes} />
+            ) : (
+              <DesignViewer slideDesigns={slideDesigns} />
             )}
           </div>
         </div>

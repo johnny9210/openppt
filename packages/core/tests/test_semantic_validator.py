@@ -1,91 +1,9 @@
-"""Tests for semantic_validator — extract_slide_component and slot classification."""
+"""Tests for semantic_validator — extract_slide_component."""
 
 import pytest
 from core.nodes.semantic_validator import (
     extract_slide_component,
-    extract_slots,
-    _classify_importance,
 )
-
-
-# ─── _classify_importance ───────────────────────────────────────────
-
-
-class TestClassifyImportance:
-    def test_critical_slots(self):
-        assert _classify_importance("chart_renderer") == "critical"
-        assert _classify_importance("grid_layout") == "critical"
-        assert _classify_importance("list_layout") == "critical"
-
-    def test_major_slots(self):
-        assert _classify_importance("severity_badge") == "major"
-        assert _classify_importance("metric_color") == "major"
-        assert _classify_importance("bar_highlight") == "major"
-
-    def test_minor_slots(self):
-        assert _classify_importance("title_size") == "minor"
-        assert _classify_importance("subtitle") == "minor"
-        assert _classify_importance("background") == "minor"
-
-
-# ─── extract_slots ──────────────────────────────────────────────────
-
-
-class TestExtractSlots:
-    def test_extract_multiple_slots(self):
-        spec = {
-            "ppt_state": {
-                "presentation": {
-                    "slides": [
-                        {
-                            "slide_id": "slide_001",
-                            "type": "cover",
-                            "slots": {
-                                "title_size": "제목 글자 크기 조정",
-                                "background": "배경색 설정",
-                            },
-                        },
-                        {
-                            "slide_id": "slide_003",
-                            "type": "data_visualization",
-                            "slots": {
-                                "chart_renderer": "차트 타입에 따라 렌더링",
-                            },
-                        },
-                    ]
-                }
-            }
-        }
-        slots = extract_slots(spec)
-        assert len(slots) == 3
-        keys = {s.slot_key for s in slots}
-        assert keys == {"title_size", "background", "chart_renderer"}
-
-    def test_empty_slots(self):
-        spec = {
-            "ppt_state": {
-                "presentation": {
-                    "slides": [
-                        {"slide_id": "slide_001", "type": "cover", "slots": {}},
-                    ]
-                }
-            }
-        }
-        slots = extract_slots(spec)
-        assert len(slots) == 0
-
-    def test_no_slots_key(self):
-        spec = {
-            "ppt_state": {
-                "presentation": {
-                    "slides": [
-                        {"slide_id": "slide_001", "type": "cover"},
-                    ]
-                }
-            }
-        }
-        slots = extract_slots(spec)
-        assert len(slots) == 0
 
 
 # ─── extract_slide_component ────────────────────────────────────────

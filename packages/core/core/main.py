@@ -160,7 +160,7 @@ async def generate_ppt(request: GenerateRequest):
                                 event="text",
                             )
 
-                    # Phase 2: Design images (don't send base64 in SSE)
+                    # Phase 2: Design images (include base64 for Design tab preview)
                     if "slide_designs" in update and update["slide_designs"]:
                         for design in update["slide_designs"]:
                             yield ServerSentEvent(
@@ -170,6 +170,7 @@ async def generate_ppt(request: GenerateRequest):
                                         "type": design["type"],
                                         "has_image": design.get("image_b64")
                                         is not None,
+                                        "image_b64": design.get("image_b64"),
                                     },
                                     ensure_ascii=False,
                                 ),

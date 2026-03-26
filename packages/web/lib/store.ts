@@ -16,6 +16,13 @@ interface SlideCode {
   code: string;
 }
 
+interface SlideDesign {
+  slide_id: string;
+  type: string;
+  has_image: boolean;
+  image_b64: string | null;
+}
+
 interface AppState {
   // Session
   sessionId: string | null;
@@ -24,9 +31,9 @@ interface AppState {
   // Pipeline state
   reactCode: string;
   slideCodes: Record<string, SlideCode>;
+  slideDesigns: Record<string, SlideDesign>;
   slideSpec: SlideSpec | null;
   validationResult: { layer?: string; status?: string } | null;
-  revisionCount: number;
   progressSteps: ProgressStep[];
 
   // Actions
@@ -34,6 +41,7 @@ interface AppState {
   setIsGenerating: (v: boolean) => void;
   setReactCode: (code: string) => void;
   setSlideCode: (slide: SlideCode) => void;
+  setSlideDesign: (design: SlideDesign) => void;
   setSlideSpec: (spec: SlideSpec) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
@@ -46,9 +54,9 @@ export const useStore = create<AppState>()((set) => ({
   isGenerating: false,
   reactCode: "",
   slideCodes: {},
+  slideDesigns: {},
   slideSpec: null,
   validationResult: null,
-  revisionCount: 0,
   progressSteps: [],
 
   setSessionId: (id) => set({ sessionId: id }),
@@ -57,6 +65,10 @@ export const useStore = create<AppState>()((set) => ({
   setSlideCode: (slide) =>
     set((state) => ({
       slideCodes: { ...state.slideCodes, [slide.slide_id]: slide },
+    })),
+  setSlideDesign: (design) =>
+    set((state) => ({
+      slideDesigns: { ...state.slideDesigns, [design.slide_id]: design },
     })),
   setSlideSpec: (spec) => set({ slideSpec: spec }),
   setValidationResult: (result) => set({ validationResult: result }),
@@ -69,9 +81,9 @@ export const useStore = create<AppState>()((set) => ({
       isGenerating: false,
       reactCode: "",
       slideCodes: {},
+      slideDesigns: {},
       slideSpec: null,
       validationResult: null,
-      revisionCount: 0,
       progressSteps: [],
     }),
 }));
