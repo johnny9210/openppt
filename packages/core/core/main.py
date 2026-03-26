@@ -42,6 +42,12 @@ class GenerateRequest(BaseModel):
     model_type: str | None = None  # "claude" | "gpt"
 
 
+class EditRequest(BaseModel):
+    session_id: str
+    user_request: str
+    target_slide_id: str
+
+
 class HumanReviewRequest(BaseModel):
     session_id: str
     action: str  # "retry" | "approve" | "abort"
@@ -247,6 +253,135 @@ async def generate_ppt(request: GenerateRequest):
 
         tb = traceback.format_exc()
         print(f"Pipeline error:\n{tb}", flush=True)
+        yield ServerSentEvent(
+            raw_data=json.dumps({"error": str(e), "traceback": tb}),
+            event="error",
+        )
+
+
+@app.post("/api/edit", response_class=EventSourceResponse)
+async def edit_slide(request: EditRequest):
+    """Edit a specific slide by re-synthesizing it with user instructions.
+
+    Uses LangGraph update_state to inject a fix_prompt targeting the slide,
+    then resumes from semantic_validator -> semantic_decision -> code_synthesizer.
+    """
+    pipeline = get_pipeline()
+    config = {"configurable": {"thread_id": request.session_id}}
+
+    current_state = pipeline.get_state(config)
+    if not current_state.values:
+        yield ServerSentEvent(
+            raw_data=json.dumps({
+                "error": "세션이 만료되었습니다. PPT를 다시 생성해주세요.",
+                "detail": "Session not found",
+            }),
+            event="error",
+        )
+        return
+
+    logger.info("[Edit] Session: %s, target: %s, request: %s",
+                request.session_id, request.target_slide_id, request.user_request[:100])
+
+    yield ServerSentEvent(
+        raw_data=json.dumps({"session_id": request.session_id, "status": "editing"}),
+        event="session",
+    )
+
+    try:
+        # Inject edit instruction as a semantic validation failure for the target slide.
+        # This makes the pipeline resume: semantic_decision -> code_synthesizer (re-synth target only)
+        fix_prompt = (
+            f"[사용자 수정 요청]\n"
+            f"슬라이드 {request.target_slide_id}에 대한 수정:\n"
+            f"{request.user_request}\n\n"
+            f"[수정 원칙]\n"
+            f"- 위 요청사항을 반영하여 해당 슬라이드만 수정\n"
+            f"- 나머지 레이아웃/디자인은 유지\n"
+            f"- content props 동적 바인딩 유지"
+        )
+
+        pipeline.update_state(
+            config,
+            {
+                "validation_result": {
+                    "layer": "semantic",
+                    "status": "fail",
+                    "fix_prompt": fix_prompt,
+                    "failed_slide_ids": [request.target_slide_id],
+                },
+                "revision_count": 0,
+            },
+            as_node="semantic_validator",
+        )
+
+        # Resume pipeline — semantic_decision sees fail -> routes to code_synthesizer
+        async for mode, chunk in pipeline.astream(
+            None,
+            config,
+            stream_mode=["updates", "custom"],
+        ):
+            if mode == "custom":
+                yield ServerSentEvent(
+                    raw_data=json.dumps(chunk, ensure_ascii=False),
+                    event="progress",
+                )
+            elif mode == "updates":
+                for node_name, update in chunk.items():
+                    if not update or not isinstance(update, dict):
+                        continue
+                    if "generated_slides" in update and update["generated_slides"]:
+                        for slide_data in update["generated_slides"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(slide_data, ensure_ascii=False),
+                                event="slide",
+                            )
+                    if "react_code" in update and update["react_code"]:
+                        yield ServerSentEvent(
+                            raw_data=json.dumps(
+                                {"react_code": update["react_code"]},
+                                ensure_ascii=False,
+                            ),
+                            event="code",
+                        )
+                    if "slide_spec" in update and update["slide_spec"]:
+                        yield ServerSentEvent(
+                            raw_data=json.dumps(
+                                {"slide_spec": update["slide_spec"]},
+                                ensure_ascii=False,
+                            ),
+                            event="state",
+                        )
+                    if "validation_result" in update:
+                        yield ServerSentEvent(
+                            raw_data=json.dumps(
+                                update["validation_result"], ensure_ascii=False
+                            ),
+                            event="validation",
+                        )
+
+        final_state = pipeline.get_state(config)
+        final_slide_spec = final_state.values.get("slide_spec", {})
+
+        await save_session(request.session_id, final_state.values)
+
+        yield ServerSentEvent(
+            raw_data=json.dumps(
+                {
+                    "status": "completed",
+                    "react_code": final_state.values.get("react_code", ""),
+                    "slide_spec": final_slide_spec,
+                },
+                ensure_ascii=False,
+            ),
+            event="complete",
+        )
+
+    except Exception as e:
+        import traceback
+
+        tb = traceback.format_exc()
+        print(f"Edit pipeline error:\n{tb}", flush=True)
         yield ServerSentEvent(
             raw_data=json.dumps({"error": str(e), "traceback": tb}),
             event="error",

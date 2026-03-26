@@ -83,8 +83,14 @@ export default function CodeViewer({ code, slideCodes }: CodeViewerProps) {
             return (
               <button
                 key={id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("slide_id", id);
+                  e.dataTransfer.setData("slide_label", `${num}. ${label}`);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
                 onClick={() => setActiveFile(id)}
-                className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
+                className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors cursor-grab active:cursor-grabbing ${
                   activeFile === id
                     ? "bg-blue-100 text-blue-600"
                     : "text-gray-500 hover:text-gray-700 hover:bg-blue-50"
