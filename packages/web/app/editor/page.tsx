@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import ChatInput from "@/components/chat/ChatInput";
+import ChatHistory from "@/components/chat/ChatHistory";
 import ProgressBar from "@/components/chat/ProgressBar";
 import SlidePreview, { captureAllSlides } from "@/components/preview/SlidePreview";
 import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
@@ -114,10 +115,8 @@ export default function EditorPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Chat + Input */}
         <div className="w-[400px] flex flex-col border-r border-blue-200 bg-white/50">
-          <div className="flex-1 overflow-y-auto p-4">
-            {/* Chat history will be here */}
-          </div>
           <ChatInput />
+          <ChatHistory />
         </div>
 
         {/* Right: Preview/Code */}

@@ -65,6 +65,23 @@ export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
 
   const activeDesign = activeSlide ? slideDesigns[activeSlide] : null;
 
+  function downloadImage(design: SlideDesign) {
+    if (!design.image_b64) return;
+    const a = document.createElement("a");
+    a.href = `data:image/png;base64,${design.image_b64}`;
+    a.download = `${design.slide_id}_${design.type}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function downloadAll() {
+    const withImages = slideIds.filter((id) => slideDesigns[id].image_b64);
+    withImages.forEach((id, i) => {
+      setTimeout(() => downloadImage(slideDesigns[id]), i * 100);
+    });
+  }
+
   return (
     <div className="flex h-full">
       {/* Left: Slide list panel */}
@@ -103,9 +120,20 @@ export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
             );
           })}
         </div>
-        <div className="px-3 py-2 border-t border-blue-200 text-[10px] text-gray-400">
-          {slideIds.filter((id) => slideDesigns[id].has_image).length}/
-          {slideIds.length} 이미지 생성됨
+        <div className="px-3 py-2 border-t border-blue-200 text-[10px] text-gray-400 flex items-center justify-between">
+          <span>
+            {slideIds.filter((id) => slideDesigns[id].has_image).length}/
+            {slideIds.length} 이미지 생성됨
+          </span>
+          {slideIds.some((id) => slideDesigns[id].image_b64) && (
+            <button
+              onClick={downloadAll}
+              className="text-blue-500 hover:text-blue-700 transition-colors"
+              title="전체 다운로드"
+            >
+              전체 저장
+            </button>
+          )}
         </div>
       </div>
 
@@ -117,11 +145,21 @@ export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
             <span>
               {activeSlide}.png — {TYPE_LABELS[activeDesign.type] || activeDesign.type}
             </span>
-            {activeDesign.image_b64 && (
-              <span className="text-gray-400">
-                {Math.round(activeDesign.image_b64.length * 0.75 / 1024)} KB
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {activeDesign.image_b64 && (
+                <span className="text-gray-400">
+                  {Math.round(activeDesign.image_b64.length * 0.75 / 1024)} KB
+                </span>
+              )}
+              {activeDesign.image_b64 && (
+                <button
+                  onClick={() => downloadImage(activeDesign)}
+                  className="px-2 py-0.5 rounded text-[11px] bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                >
+                  다운로드
+                </button>
+              )}
+            </div>
           </div>
         )}
 

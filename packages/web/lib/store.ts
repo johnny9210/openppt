@@ -23,6 +23,14 @@ interface SlideDesign {
   image_b64: string | null;
 }
 
+interface ChatMessage {
+  id: string;
+  role: "user" | "system";
+  content: string;
+  timestamp: number;
+  type?: "request" | "progress" | "design" | "slide" | "code" | "validation" | "complete" | "error";
+}
+
 interface AppState {
   // Session
   sessionId: string | null;
@@ -35,6 +43,7 @@ interface AppState {
   slideSpec: SlideSpec | null;
   validationResult: { layer?: string; status?: string } | null;
   progressSteps: ProgressStep[];
+  chatMessages: ChatMessage[];
 
   // Actions
   setSessionId: (id: string) => void;
@@ -45,6 +54,7 @@ interface AppState {
   setSlideSpec: (spec: SlideSpec) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
+  addChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
   resetProgress: () => void;
   reset: () => void;
 }
@@ -58,6 +68,7 @@ export const useStore = create<AppState>()((set) => ({
   slideSpec: null,
   validationResult: null,
   progressSteps: [],
+  chatMessages: [],
 
   setSessionId: (id) => set({ sessionId: id }),
   setIsGenerating: (v) => set({ isGenerating: v }),
@@ -74,6 +85,13 @@ export const useStore = create<AppState>()((set) => ({
   setValidationResult: (result) => set({ validationResult: result }),
   addProgressStep: (step) =>
     set((state) => ({ progressSteps: [...state.progressSteps, step] })),
+  addChatMessage: (msg) =>
+    set((state) => ({
+      chatMessages: [
+        ...state.chatMessages,
+        { ...msg, id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, timestamp: Date.now() },
+      ],
+    })),
   resetProgress: () => set({ progressSteps: [], isGenerating: false }),
   reset: () =>
     set({
@@ -85,5 +103,6 @@ export const useStore = create<AppState>()((set) => ({
       slideSpec: null,
       validationResult: null,
       progressSteps: [],
+      chatMessages: [],
     }),
 }));
