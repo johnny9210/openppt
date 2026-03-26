@@ -413,42 +413,12 @@ def _build_design_prompt(
 ) -> str:
     """Build Nano Banana prompt for slide design generation.
 
-    Uses ICS framework (Image type + Content + Style) with shared visual identity.
-    Embeds actual content text in double quotes for accurate Korean text rendering.
+    Strategy:
+    1. If slide has 'design_prompt' (LLM-generated in scoping) → use it + guardrails
+    2. Fallback: use hardcoded TYPE_PROMPT_MAP templates (legacy)
     """
     style = brief.get("style", {})
     slide_type = slide["type"]
-
-    # Build rich content hints from available data
-    key_points = slide.get("key_points", [])
-    content_parts = []
-
-    # Include topic context
-    if brief.get("purpose"):
-        content_parts.append(f"프레젠테이션 목적: {brief['purpose']}")
-    if brief.get("key_message"):
-        content_parts.append(f'핵심 메시지: "{brief["key_message"]}"')
-
-    # Include actual key points in double quotes (Nano Banana renders these accurately)
-    if key_points:
-        content_parts.append("포함할 항목:")
-        for i, pt in enumerate(key_points, 1):
-            content_parts.append(f'  {i}. "{pt}"')
-
-    # Include data for data visualization slides
-    data = slide.get("data")
-    if data:
-        content_parts.append(f"데이터: {data}")
-
-    # Include design direction
-    design_dir = slide.get("design_direction", "")
-    if design_dir:
-        content_parts.append(f"디자인 방향: {design_dir}")
-
-    content_hints = "\n".join(content_parts) if content_parts else f'주제: "{slide["topic"]}"'
-    content_hints = _truncate_content(content_hints)
-
-    # Build visual identity with actual colors
     primary = style.get("primary_color", "#6366F1")
     accent = style.get("accent_color", "#818CF8")
 
@@ -467,7 +437,39 @@ Maintain this consistent look while adapting the layout to the current slide typ
 
 """ + visual_identity
 
-    # Select template
+    # --- Strategy 1: LLM-generated design_prompt from scoping ---
+    custom_prompt = slide.get("design_prompt")
+    if custom_prompt:
+        logger.info("[DesignGen] Using LLM-generated design_prompt for %s", slide.get("slide_id"))
+        return f"{custom_prompt}\n\n{visual_identity}"
+
+    # --- Strategy 2: Fallback to hardcoded templates ---
+    logger.info("[DesignGen] Fallback to template for %s (%s)", slide.get("slide_id"), slide_type)
+
+    key_points = slide.get("key_points", [])
+    content_parts = []
+
+    if brief.get("purpose"):
+        content_parts.append(f"프레젠테이션 목적: {brief['purpose']}")
+    if brief.get("key_message"):
+        content_parts.append(f'핵심 메시지: "{brief["key_message"]}"')
+
+    if key_points:
+        content_parts.append("포함할 항목:")
+        for i, pt in enumerate(key_points, 1):
+            content_parts.append(f'  {i}. "{pt}"')
+
+    data = slide.get("data")
+    if data:
+        content_parts.append(f"데이터: {data}")
+
+    design_dir = slide.get("design_direction", "")
+    if design_dir:
+        content_parts.append(f"디자인 방향: {design_dir}")
+
+    content_hints = "\n".join(content_parts) if content_parts else f'주제: "{slide["topic"]}"'
+    content_hints = _truncate_content(content_hints)
+
     template = TYPE_PROMPT_MAP.get(slide_type, GENERIC_PROMPT)
 
     format_kwargs = {
@@ -480,7 +482,6 @@ Maintain this consistent look while adapting the layout to the current slide typ
         "visual_identity": visual_identity,
     }
 
-    # GENERIC_PROMPT uses slide_type, others don't
     if slide_type not in TYPE_PROMPT_MAP:
         format_kwargs["slide_type"] = slide_type
 
