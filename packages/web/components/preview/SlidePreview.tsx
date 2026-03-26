@@ -106,8 +106,10 @@ export async function captureAllSlides(
 
 const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function SlidePreview({ code, spec, slideCodes }, ref) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState<number>(0);
+  const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 960, h: 540 });
 
   const slideIds = slideCodes ? Object.keys(slideCodes).sort() : [];
 
@@ -149,6 +151,24 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  // Fit 16:9 box within container
+  useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width: cw, height: ch } = entry.contentRect;
+      let w = Math.min(cw, 960);
+      let h = w * 9 / 16;
+      if (h > ch) {
+        h = ch;
+        w = h * 16 / 9;
+      }
+      setPreviewSize({ w: Math.round(w), h: Math.round(h) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const goToSlide = (index: number) => {
@@ -210,8 +230,11 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
       )}
 
       {/* Right: Preview */}
-      <div className="flex-1 flex items-center justify-center bg-blue-50 p-8 min-h-0 overflow-hidden">
-        <div className="relative w-full max-w-[960px] max-h-full aspect-video rounded-xl overflow-hidden shadow-lg border border-blue-200">
+      <div ref={previewContainerRef} className="flex-1 flex items-center justify-center bg-blue-50 p-4 min-h-0">
+        <div
+          className="relative rounded-xl overflow-hidden shadow-lg border border-blue-200"
+          style={{ width: previewSize.w, height: previewSize.h }}
+        >
           {isLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 text-gray-500 gap-3">
               <div className="w-8 h-8 border-2 border-blue-200 border-t-sky-500 rounded-full animate-spin" />
@@ -222,7 +245,12 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
           <iframe
             ref={iframeRef}
             sandbox="allow-scripts allow-same-origin"
-            className="w-full h-full border-0"
+            className="border-0 origin-top-left"
+            style={{
+              width: 1280,
+              height: 720,
+              transform: `scale(${previewSize.w / 1280})`,
+            }}
             title="Slide Preview"
           />
         </div>
