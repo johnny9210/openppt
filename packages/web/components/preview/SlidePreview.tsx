@@ -204,8 +204,8 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
       )}
 
       {/* Right: Preview */}
-      <div className="flex-1 flex items-center justify-center bg-blue-50 p-8">
-        <div className="relative w-full max-w-[960px] aspect-video rounded-xl overflow-hidden shadow-lg border border-blue-200">
+      <div className="flex-1 flex items-center justify-center bg-blue-50 p-8 min-h-0 overflow-hidden">
+        <div className="relative w-full max-w-[960px] max-h-full aspect-video rounded-xl overflow-hidden shadow-lg border border-blue-200">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 text-gray-500 gap-3">
               <div className="w-8 h-8 border-2 border-blue-200 border-t-sky-500 rounded-full animate-spin" />

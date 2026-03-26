@@ -30,14 +30,11 @@ export default function ChatInput() {
     setIsGenerating(true);
 
     addChatMessage({ role: "user", content: request, type: "request" });
-    addChatMessage({ role: "system", content: "파이프라인 시작...", type: "progress" });
 
     try {
-      let count = 0;
       let receivedCode = false;
       let receivedSpec = false;
       for await (const event of streamGenerate(request)) {
-        count++;
         const data = event.data as Record<string, unknown>;
 
         switch (event.event) {
@@ -51,14 +48,6 @@ export default function ChatInput() {
               message: data.message as string,
               done: data.done as boolean,
             });
-            // Only show major phase completions in chat
-            if (data.done) {
-              addChatMessage({
-                role: "system",
-                content: `✓ ${data.message}`,
-                type: "progress",
-              });
-            }
             break;
           case "scoping":
             // Handled via progress done events
@@ -70,11 +59,6 @@ export default function ChatInput() {
               has_image: data.has_image as boolean,
               image_b64: (data.image_b64 as string) || null,
             });
-            addChatMessage({
-              role: "system",
-              content: `🎨 디자인: ${data.slide_id} (${data.type}) ${data.has_image ? "✓" : "✗"}`,
-              type: "design",
-            });
             break;
           case "text":
             // Silent — too noisy per-slide
@@ -84,11 +68,6 @@ export default function ChatInput() {
               slide_id: data.slide_id as string,
               type: data.type as string,
               code: data.code as string,
-            });
-            addChatMessage({
-              role: "system",
-              content: `💻 코드: ${data.slide_id} (${data.type})`,
-              type: "slide",
             });
             break;
           case "state":
@@ -100,52 +79,22 @@ export default function ChatInput() {
           case "code":
             setReactCode(data.react_code as string);
             receivedCode = true;
-            addChatMessage({
-              role: "system",
-              content: `📦 코드 조립 완료 (${(data.react_code as string)?.length || 0} chars)`,
-              type: "code",
-            });
             break;
-          case "validation": {
+          case "validation":
             setValidationResult(data as { layer: string; status: string });
-            const vStatus = data.status as string;
-            const vLayer = data.layer as string;
-            addChatMessage({
-              role: "system",
-              content: `${vStatus === "pass" ? "✅" : "❌"} 검증 ${vLayer}: ${vStatus}`,
-              type: "validation",
-            });
             break;
-          }
           case "complete":
             if (!receivedCode && data.react_code) setReactCode(data.react_code as string);
             if (!receivedSpec && data.slide_spec) setSlideSpec(data.slide_spec as Record<string, unknown>);
-            addChatMessage({
-              role: "system",
-              content: `🎉 완료! (총 ${count}개 이벤트, 코드 ${(data.react_code as string)?.length || 0} chars)`,
-              type: "complete",
-            });
             break;
-          case "error": {
-            const errorMsg =
-              (data.message as string) ||
-              (data.error as string) ||
-              (data.detail as string) ||
-              JSON.stringify(data);
+          case "error":
             setReactCode("");
             setIsGenerating(false);
-            addChatMessage({
-              role: "system",
-              content: `❗ 에러: ${errorMsg}`,
-              type: "error",
-            });
             break;
-          }
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      addChatMessage({ role: "system", content: `❗ 실패: ${msg}`, type: "error" });
+      // error handled by isGenerating reset
     } finally {
       setIsGenerating(false);
     }

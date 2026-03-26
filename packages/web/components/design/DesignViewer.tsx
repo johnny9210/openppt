@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 interface SlideDesign {
   slide_id: string;
@@ -31,11 +31,128 @@ const TYPE_LABELS: Record<string, string> = {
   closing: "마무리",
 };
 
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data[i];
+    for (let j = 0; j < 8; j++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function buildZip(files: { name: string; data: Uint8Array }[]): Blob {
+  const parts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const nameBytes = new TextEncoder().encode(file.name);
+    const crc = crc32(file.data);
+
+    // local file header
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(8, 0, true);             // stored
+    lv.setUint32(14, crc, true);           // crc-32
+    lv.setUint32(18, file.data.length, true);
+    lv.setUint32(22, file.data.length, true);
+    lv.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+
+    // central directory header
+    const central = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(10, 0, true);            // stored
+    cv.setUint32(16, crc, true);           // crc-32
+    cv.setUint32(20, file.data.length, true);
+    cv.setUint32(24, file.data.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+
+    parts.push(local, file.data);
+    centralParts.push(central);
+    offset += local.length + file.data.length;
+  }
+
+  const centralSize = centralParts.reduce((s, e) => s + e.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+
+  // concat all into single ArrayBuffer to avoid .buffer slice issues
+  const totalSize = offset + centralSize + 22;
+  const result = new Uint8Array(totalSize);
+  let pos = 0;
+  for (const p of [...parts, ...centralParts, eocd]) {
+    result.set(p, pos);
+    pos += p.length;
+  }
+  return new Blob([result.buffer], { type: "application/zip" });
+}
+
 export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
   const slideIds = Object.keys(slideDesigns).sort();
   const [activeSlide, setActiveSlide] = useState<string | null>(
     slideIds[0] || null
   );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectableIds = slideIds.filter((id) => slideDesigns[id].image_b64);
+
+  const toggleAll = useCallback(() => {
+    setSelectedIds((prev) =>
+      prev.size === selectableIds.length ? new Set() : new Set(selectableIds)
+    );
+  }, [selectableIds]);
+
+  const downloadZip = useCallback(() => {
+    const files = [...selectedIds]
+      .sort()
+      .map((id) => {
+        const d = slideDesigns[id];
+        return { name: `${d.slide_id}_${d.type}.png`, data: base64ToBytes(d.image_b64!) };
+      });
+    if (files.length === 0) return;
+    const blob = buildZip(files);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "design_images.zip";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, [selectedIds, slideDesigns]);
 
   if (slideIds.length === 0) {
     return (
@@ -75,13 +192,6 @@ export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
     document.body.removeChild(a);
   }
 
-  function downloadAll() {
-    const withImages = slideIds.filter((id) => slideDesigns[id].image_b64);
-    withImages.forEach((id, i) => {
-      setTimeout(() => downloadImage(slideDesigns[id]), i * 100);
-    });
-  }
-
   return (
     <div className="flex h-full">
       {/* Left: Slide list panel */}
@@ -97,22 +207,36 @@ export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
             return (
               <button
                 key={id}
-                onClick={() => setActiveSlide(id)}
+                onClick={() => selectMode && design.image_b64 ? toggleSelect(id) : setActiveSlide(id)}
                 className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
-                  activeSlide === id
+                  activeSlide === id && !selectMode
                     ? "bg-blue-100 text-blue-600"
                     : "text-gray-500 hover:text-gray-700 hover:bg-blue-50"
                 }`}
               >
-                <span
-                  className={`w-5 h-5 flex-shrink-0 rounded flex items-center justify-center text-[10px] ${
-                    design.has_image
-                      ? "bg-green-100 text-green-500"
-                      : "bg-gray-100 text-gray-400"
-                  }`}
-                >
-                  {design.has_image ? "✓" : "✗"}
-                </span>
+                {selectMode ? (
+                  <span
+                    className={`w-5 h-5 flex-shrink-0 rounded border flex items-center justify-center text-[10px] transition-colors ${
+                      !design.image_b64
+                        ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
+                        : selectedIds.has(id)
+                          ? "border-blue-500 bg-blue-500 text-white"
+                          : "border-gray-300 bg-white"
+                    }`}
+                  >
+                    {selectedIds.has(id) && "✓"}
+                  </span>
+                ) : (
+                  <span
+                    className={`w-5 h-5 flex-shrink-0 rounded flex items-center justify-center text-[10px] ${
+                      design.has_image
+                        ? "bg-green-100 text-green-500"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {design.has_image ? "✓" : "✗"}
+                  </span>
+                )}
                 <div className="truncate">
                   <span className="text-gray-400">{num}.</span> {label}
                 </div>
@@ -120,19 +244,47 @@ export default function DesignViewer({ slideDesigns }: DesignViewerProps) {
             );
           })}
         </div>
-        <div className="px-3 py-2 border-t border-blue-200 text-[10px] text-gray-400 flex items-center justify-between">
-          <span>
-            {slideIds.filter((id) => slideDesigns[id].has_image).length}/
-            {slideIds.length} 이미지 생성됨
-          </span>
-          {slideIds.some((id) => slideDesigns[id].image_b64) && (
-            <button
-              onClick={downloadAll}
-              className="text-blue-500 hover:text-blue-700 transition-colors"
-              title="전체 다운로드"
-            >
-              전체 저장
-            </button>
+        <div className="px-3 py-2 border-t border-blue-200 text-[10px] text-gray-400">
+          {selectMode ? (
+            <div className="flex items-center justify-between">
+              <button onClick={toggleAll} className="text-blue-500 hover:text-blue-700">
+                {selectedIds.size === selectableIds.length ? "전체 해제" : "전체 선택"}
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={downloadZip}
+                  disabled={selectedIds.size === 0}
+                  className={`px-2 py-0.5 rounded ${
+                    selectedIds.size > 0
+                      ? "bg-blue-500 text-white hover:bg-blue-600"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
+                >
+                  ZIP ({selectedIds.size})
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span>
+                {slideIds.filter((id) => slideDesigns[id].has_image).length}/
+                {slideIds.length} 이미지 생성됨
+              </span>
+              {selectableIds.length > 0 && (
+                <button
+                  onClick={() => { setSelectMode(true); setSelectedIds(new Set(selectableIds)); }}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  ZIP 저장
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
