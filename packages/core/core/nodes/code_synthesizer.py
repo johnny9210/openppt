@@ -370,7 +370,81 @@ type: {slide_type}
     return final_code
 
 
-# ── Slide synthesis (2-pass) ─────────────────────────────────
+# ── Pass 3: Layout Fitting (16:9 컨테이너 맞춤) ──────────────
+
+FITTING_SYSTEM_PROMPT = """당신은 React 슬라이드 컴포넌트의 레이아웃을 16:9 컨테이너에 맞추는 전문가입니다.
+
+★ 핵심 임무: 주어진 코드가 16:9 비율(약 960×540px) 컨테이너 안에 모든 요소가 들어가도록 크기를 조정합니다.
+
+<output_rules>
+★ 최우선 규칙: const로 시작하는 순수 React 컴포넌트 코드만 출력하세요.
+코드 외의 모든 텍스트를 절대 출력하지 마세요.
+코드 블록(```)으로 감싸는 것은 허용합니다.
+</output_rules>
+
+<analysis>
+## 분석 절차
+1. 최상위 컨테이너의 padding을 확인 → 사용 가능한 내부 영역 계산
+2. 제목+설명 영역의 높이 추정 (fontSize, marginBottom 등)
+3. 본문 콘텐츠 영역의 높이 추정:
+   - grid/flex 레이아웃의 행 수 × (카드 높이 + gap)
+   - 카드 높이 = padding-top + 아이콘 높이 + 텍스트 줄 수 × lineHeight + padding-bottom
+4. 전체 높이 합산 → 540px(16:9 기준) 초과 여부 판단
+</analysis>
+
+<adjustments>
+## 넘칠 때 조정 우선순위 (위에서부터 적용)
+1. **padding 축소**: 외부 padding "48px 60px" → "32px 40px" 또는 "24px 32px"
+2. **gap 축소**: 카드 간 gap 20 → 12~16
+3. **카드 내부 padding 축소**: "24px 20px" → "16px 14px" 또는 "12px 10px"
+4. **fontSize 축소**: 제목 32→26, 카드제목 17→14, 설명 13→11
+5. **아이콘 배지 축소**: 52px → 40px 또는 36px
+6. **marginBottom 축소**: 제목 아래 여백 줄이기
+7. **그리드 재배치**: 항목 5~6개인데 2열이면 3열로 변경 고려
+</adjustments>
+
+<rules>
+## 규칙
+- 디자인의 시각적 정체성(색상, 카드 스타일, 구조)은 유지
+- 콘텐츠를 삭제하거나 숨기지 마세요 — 크기만 조정
+- 이미 16:9에 충분히 들어가는 코드는 수정하지 말고 그대로 출력
+- 컴포넌트 이름, import, THEME 재선언 금지 등 기존 제약 유지
+</rules>"""
+
+
+async def _fit_layout(
+    llm,
+    code: str,
+    slide_id: str,
+    slide_type: str,
+    comp_name: str,
+) -> str:
+    """Pass 3: Check if code fits in 16:9 container and adjust sizing if needed."""
+    prompt = f"""[슬라이드 코드 — 16:9 컨테이너(약 960×540px)에 맞는지 확인하고 조정하세요]
+```jsx
+{code}
+```
+
+[슬라이드 정보]
+slide_id: {slide_id}
+type: {slide_type}
+컴포넌트 이름: {comp_name}
+
+이 코드의 모든 요소가 960×540px(16:9) 안에 들어가는지 분석하세요.
+넘칠 가능성이 있으면 padding, gap, fontSize 등을 축소하여 맞추세요.
+이미 충분히 들어가면 코드를 그대로 출력하세요."""
+
+    response = await llm.ainvoke([
+        SystemMessage(content=FITTING_SYSTEM_PROMPT),
+        HumanMessage(content=prompt),
+    ])
+
+    fitted_code = _extract_code(response.content)
+    logger.info("[Synth:Pass3] %s (%s) - fitted: %d chars", slide_id, slide_type, len(fitted_code))
+    return fitted_code
+
+
+# ── Slide synthesis (3-pass) ─────────────────────────────────
 
 async def _synthesize_slide(
     llm,
@@ -382,10 +456,11 @@ async def _synthesize_slide(
     style: dict,
     fix_prompt: str = "",
 ) -> dict:
-    """Synthesize React code for one slide using 2-pass architecture.
+    """Synthesize React code for one slide using 3-pass architecture.
 
     Pass 1 (Vision): Design image -> CSS layout code (structure only)
     Pass 2 (Code):   Layout code + content -> Final component with text
+    Pass 3 (Code):   Verify 16:9 fit and adjust sizing if needed
     """
     # Pass 1: Generate layout from design image
     layout_code = await _generate_layout(
@@ -393,8 +468,13 @@ async def _synthesize_slide(
     )
 
     # Pass 2: Insert text content into layout
-    final_code = await _insert_text(
+    text_code = await _insert_text(
         llm, layout_code, slide_id, slide_type, content, comp_name, fix_prompt,
+    )
+
+    # Pass 3: Fit to 16:9 container
+    final_code = await _fit_layout(
+        llm, text_code, slide_id, slide_type, comp_name,
     )
 
     return {
