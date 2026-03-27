@@ -57,59 +57,33 @@ export default function Presentation({ spec }) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [total]);
 
-  // Register goTo on global bridge for parent postMessage
   useEffect(() => {
     window.__goToSlide = goTo;
     return () => { window.__goToSlide = null; };
   });
 
   const arrowBtn = (direction, onClick) => (
-    <button onClick={onClick} style={{
-      position: "absolute", top: "50%", transform: "translateY(-50%)",
-      [direction === "left" ? "left" : "right"]: 12,
-      width: 40, height: 40, borderRadius: "50%", border: "1px solid #E2E8F0",
-      background: "rgba(255,255,255,0.9)", color: "#475569",
-      fontSize: 20, cursor: "pointer", display: "flex",
-      alignItems: "center", justifyContent: "center",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.1)", transition: "all 0.2s",
-      zIndex: 10,
-    }}
-    onMouseEnter={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.9)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"; }}
-    >{direction === "left" ? "\\u2039" : "\\u203A"}</button>
+    <button onClick={onClick} className={`absolute top-1/2 -translate-y-1/2 ${direction === "left" ? "left-3" : "right-3"} w-10 h-10 rounded-full border border-slate-200 bg-white/90 text-slate-600 text-xl cursor-pointer flex items-center justify-center shadow-md hover:bg-white hover:shadow-lg transition-all z-10`}>
+      {direction === "left" ? "\\u2039" : "\\u203A"}
+    </button>
   );
 
   return (
-    <div style={{
-      background: "#E8ECF1", width: "100vw", height: "100vh",
-      display: "flex", flexDirection: "column"
-    }}>
-      <div style={{
-        flex: 1, display: "flex", position: "relative",
-        alignItems: "center", justifyContent: "center", padding: 32
-      }}>
+    <div className="bg-[#E8ECF1] w-screen h-screen flex flex-col">
+      <div className="flex-1 flex relative items-center justify-center p-8">
         {current > 0 && arrowBtn("left", goPrev)}
-        <div style={{
-          width: "100%", maxWidth: 900,
-          aspectRatio: "16/9", borderRadius: 8, overflow: "hidden",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.12)", border: "1px solid #E2E8F0",
-        }}>
+        <div className="w-full max-w-[900px] aspect-video rounded-lg overflow-hidden shadow-xl border border-slate-200">
           <SlideFactory slide={slides[current]} />
         </div>
         {current < total - 1 && arrowBtn("right", goNext)}
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, paddingBottom: 16 }}>
-        <span style={{ color: "#94A3B8", fontSize: 12 }}>
+      <div className="flex items-center justify-center gap-3 pb-4">
+        <span className="text-slate-400 text-xs">
           {current + 1} / {total}
         </span>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="flex gap-1.5">
           {slides.map((_, i) => (
-            <button key={i} data-nav-dot="true" onClick={() => goTo(i)} style={{
-              width: i === current ? 24 : 10, height: 10, borderRadius: 5,
-              border: "none", transition: "all 0.2s",
-              background: i === current ? THEME.primary : "#CBD5E1",
-              cursor: "pointer"
-            }} />
+            <button key={i} data-nav-dot="true" onClick={() => goTo(i)} className={`h-2.5 rounded-full border-0 transition-all cursor-pointer ${i === current ? "w-6 bg-primary" : "w-2.5 bg-slate-300"}`} />
           ))}
         </div>
       </div>

@@ -361,6 +361,13 @@ function stripImportsAndExports(code: string): string {
 function buildPreviewHTML(code: string, spec: Record<string, any>): string {
   const cleanCode = stripImportsAndExports(code);
 
+  // Extract theme colors for Tailwind config in iframe
+  const twTheme = (spec?.ppt_state?.presentation?.meta?.theme) || {};
+  const twPrimary = twTheme.primary_color || '#6366F1';
+  const twAccent = twTheme.accent_color || '#818CF8';
+  const twSlideBg = twTheme.background || '#F5F7FA';
+  const twHeading = twTheme.text_color || '#1A202C';
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -473,7 +480,7 @@ function buildPreviewHTML(code: string, spec: Record<string, any>): string {
 
     // --- CDN Script Loader with Error Handling ---
     var __cdnErrors = [];
-    var __scriptsLoaded = { react: false, reactDom: false, propTypes: false, recharts: false, babel: false, html2canvas: false };
+    var __scriptsLoaded = { tailwind: false, react: false, reactDom: false, propTypes: false, recharts: false, babel: false, html2canvas: false };
 
     function showError(type, title, message, stack) {
       var el = document.getElementById("error");
@@ -511,8 +518,36 @@ function buildPreviewHTML(code: string, spec: Record<string, any>): string {
       });
     }
 
-    // Load scripts sequentially (they depend on each other)
-    loadScript("https://unpkg.com/react@18/umd/react.production.min.js", "react")
+    // Load Tailwind CDN first, then remaining scripts sequentially
+    loadScript("https://cdn.tailwindcss.com", "tailwind")
+      .then(function() {
+        // Configure Tailwind with custom theme colors
+        tailwind.config = {
+          theme: {
+            extend: {
+              colors: {
+                primary: '${twPrimary}',
+                accent: '${twAccent}',
+                heading: '${twHeading}',
+                body: '#64748B',
+                card: '#FFFFFF',
+                'card-border': '#E2E8F0',
+                'slide-bg': '${twSlideBg}',
+                subtle: '${twPrimary}0F',
+                danger: '#E53E3E',
+                warning: '#F59E0B',
+                success: '#38A169',
+                divider: '#E2E8F0',
+              },
+              boxShadow: {
+                card: '0 2px 8px rgba(0,0,0,0.06)',
+                'card-hover': '0 8px 24px rgba(0,0,0,0.12)',
+              }
+            }
+          }
+        };
+        return loadScript("https://unpkg.com/react@18/umd/react.production.min.js", "react");
+      })
       .then(function() {
         return loadScript("https://unpkg.com/react-dom@18/umd/react-dom.production.min.js", "reactDom");
       })

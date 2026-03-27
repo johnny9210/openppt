@@ -60,15 +60,33 @@ class ImageExportRequest(BaseModel):
 # --- MongoDB session helpers ---
 
 async def save_session(session_id: str, state_values: dict) -> None:
-    """Save pipeline final state to MongoDB."""
+    """Save pipeline final state to MongoDB.
+
+    Strips large base64 image data from slide_designs and generated_slides
+    to stay within MongoDB's 16MB BSON document size limit.
+    Images are already delivered to the frontend via SSE events.
+    """
     col = get_sessions_collection()
+
+    # Strip base64 image data to avoid exceeding MongoDB 16MB limit
+    designs = state_values.get("slide_designs", [])
+    designs_slim = [
+        {k: v for k, v in d.items() if k != "image_b64"}
+        for d in designs
+    ]
+    gen_slides = state_values.get("generated_slides", [])
+    gen_slides_slim = [
+        {k: v for k, v in s.items() if k != "image_b64"}
+        for s in gen_slides
+    ]
+
     doc = {
         "session_id": session_id,
         "user_request": state_values.get("user_request", ""),
         "research_brief": state_values.get("research_brief", {}),
         "slide_contents": state_values.get("slide_contents", []),
-        "slide_designs": state_values.get("slide_designs", []),
-        "generated_slides": state_values.get("generated_slides", []),
+        "slide_designs": designs_slim,
+        "generated_slides": gen_slides_slim,
         "react_code": state_values.get("react_code", ""),
         "slide_spec": state_values.get("slide_spec", {}),
         "validation_result": state_values.get("validation_result", {}),
