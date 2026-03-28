@@ -5,6 +5,7 @@ SSE streaming for real-time progress updates.
 Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
 """
 
+import asyncio
 import json
 import logging
 import uuid
@@ -23,6 +24,7 @@ from langgraph.types import Command
 
 from core.pipeline import get_pipeline
 from core.database import get_sessions_collection
+from core.services.minio_client import upload_session
 
 app = FastAPI(title="PPT Code Generation API", version="0.3.0")
 
@@ -60,47 +62,47 @@ class ImageExportRequest(BaseModel):
 # --- MongoDB session helpers ---
 
 async def save_session(session_id: str, state_values: dict) -> None:
-    """Save pipeline final state to MongoDB.
+    """Save session state.
 
-    Strips large base64 image data from slide_designs and generated_slides
-    to stay within MongoDB's 16MB BSON document size limit.
-    Images are already delivered to the frontend via SSE events.
+    MinIO:   full data including images, HTML code, layouts (primary).
+    MongoDB: lightweight metadata only (fields needed by read endpoints).
     """
-    col = get_sessions_collection()
+    # 1. Upload all session data to MinIO first (primary storage)
+    try:
+        await asyncio.to_thread(upload_session, session_id, state_values)
+    except Exception as e:
+        logger.warning("[MinIO] Session upload failed: %s", e)
 
-    # Strip base64 image data to avoid exceeding MongoDB 16MB limit
-    designs = state_values.get("slide_designs", [])
-    designs_slim = [
-        {k: v for k, v in d.items() if k != "image_b64"}
-        for d in designs
-    ]
-    gen_slides = state_values.get("generated_slides", [])
-    gen_slides_slim = [
-        {k: v for k, v in s.items() if k != "image_b64"}
-        for s in gen_slides
-    ]
+    # 2. Save metadata to MongoDB (secondary, for API read endpoints)
+    try:
+        col = get_sessions_collection()
 
-    doc = {
-        "session_id": session_id,
-        "user_request": state_values.get("user_request", ""),
-        "research_brief": state_values.get("research_brief", {}),
-        "slide_contents": state_values.get("slide_contents", []),
-        "slide_designs": designs_slim,
-        "generated_slides": gen_slides_slim,
-        "pptx_layouts": state_values.get("pptx_layouts", []),
-        "react_code": state_values.get("react_code", ""),
-        "slide_spec": state_values.get("slide_spec", {}),
-        "validation_result": state_values.get("validation_result", {}),
-        "revision_count": state_values.get("revision_count", 0),
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc),
-    }
-    await col.update_one(
-        {"session_id": session_id},
-        {"$set": doc},
-        upsert=True,
-    )
-    logger.info("[MongoDB] Session saved: %s", session_id)
+        designs_slim = [
+            {k: v for k, v in d.items() if k != "image_b64"}
+            for d in state_values.get("slide_designs", [])
+        ]
+
+        doc = {
+            "session_id": session_id,
+            "user_request": state_values.get("user_request", ""),
+            "research_brief": state_values.get("research_brief", {}),
+            "slide_contents": state_values.get("slide_contents", []),
+            "slide_designs": designs_slim,
+            "react_code": state_values.get("react_code", ""),
+            "slide_spec": state_values.get("slide_spec", {}),
+            "validation_result": state_values.get("validation_result", {}),
+            "revision_count": state_values.get("revision_count", 0),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        await col.update_one(
+            {"session_id": session_id},
+            {"$set": doc},
+            upsert=True,
+        )
+        logger.info("[MongoDB] Session saved: %s", session_id)
+    except Exception as e:
+        logger.warning("[MongoDB] Session save failed: %s", e)
 
 
 async def load_session(session_id: str) -> dict | None:
