@@ -85,14 +85,17 @@ _TEMPLATE = r'''<!DOCTYPE html>
     .slide-container {
       width: 1280px;
       height: 720px;
-      display: none;
       flex-direction: column;
       background-color: #ffffff;
       position: relative;
       overflow: hidden;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    .slide-container.active {
+    /* #presentation > 로 specificity를 높여 개별 슬라이드 CSS의 display: flex 를 오버라이드 */
+    #presentation > .slide-container {
+      display: none;
+    }
+    #presentation > .slide-container.active {
       display: flex;
     }
   </style>
