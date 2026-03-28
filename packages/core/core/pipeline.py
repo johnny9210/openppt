@@ -228,7 +228,7 @@ async def progress_code_synthesizer(state: PPTState) -> dict:
     writer({
         "phase": 3,
         "step": "code_synthesizer",
-        "message": "3-Pass 코드 합성 중... (레이아웃 → 텍스트 삽입 → 크기 조정)",
+        "message": "3-Pass HTML 합성 중... (레이아웃 → 텍스트 삽입 → 크기 조정)",
     })
     result = await code_synthesizer(state)
     count = len(result.get("generated_slides", []))
@@ -246,7 +246,7 @@ def progress_code_assembly(state: PPTState) -> dict:
     writer = get_stream_writer()
     logger.info("[Pipeline] code_assembly START - generated_slides: %d, slide_contents: %d",
                 len(state.get("generated_slides", [])), len(state.get("slide_contents", [])))
-    writer({"phase": 3, "step": "code_assembly", "message": "코드 조립 중..."})
+    writer({"phase": 3, "step": "code_assembly", "message": "HTML 문서 조립 중..."})
     result = code_assembly(state)
     spec_slides = result.get("slide_spec", {}).get("ppt_state", {}).get("presentation", {}).get("slides", [])
     logger.info("[Pipeline] code_assembly DONE - react_code: %d chars, spec slides: %d",
@@ -254,7 +254,7 @@ def progress_code_assembly(state: PPTState) -> dict:
     for s in spec_slides:
         logger.info("[Pipeline]   spec slide: %s type=%s content_keys=%s",
                     s.get("slide_id"), s.get("type"), list(s.get("content", {}).keys()))
-    writer({"phase": 3, "step": "code_assembly", "message": "코드 조립 완료", "done": True})
+    writer({"phase": 3, "step": "code_assembly", "message": "HTML 문서 조립 완료", "done": True})
     return result
 
 

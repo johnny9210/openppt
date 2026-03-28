@@ -1,6 +1,6 @@
 """
-PPTX Layout Generator
-Transpiles React + Tailwind slide code to PptxGenJS-compatible JSON layouts.
+PPTX Layout Generator (HTML Edition)
+Transpiles HTML + CSS slide code to PptxGenJS-compatible JSON layouts.
 Runs in parallel with the validation chain after code_assembly.
 """
 
@@ -16,9 +16,9 @@ from core.state import PPTState
 logger = logging.getLogger(__name__)
 
 
-SYSTEM_PROMPT = """당신은 React + Tailwind CSS 코드를 PowerPoint 슬라이드 레이아웃 JSON으로 변환하는 전문가입니다.
+SYSTEM_PROMPT = """당신은 HTML + CSS 코드를 PowerPoint 슬라이드 레이아웃 JSON으로 변환하는 전문가입니다.
 
-★ 핵심 임무: 주어진 React 컴포넌트 코드를 분석하여, 동일한 레이아웃을 PptxGenJS로 재현할 수 있는 구조화된 JSON을 생성합니다.
+★ 핵심 임무: 주어진 HTML 슬라이드 코드를 분석하여, 동일한 레이아웃을 PptxGenJS로 재현할 수 있는 구조화된 JSON을 생성합니다.
 
 <coordinate_system>
 ## 좌표계 (인치 단위)
@@ -26,19 +26,14 @@ SYSTEM_PROMPT = """당신은 React + Tailwind CSS 코드를 PowerPoint 슬라이
 - 원점: 좌상단 (0, 0)
 - 모든 x, y, w, h 값은 인치(소수점 2자리)
 
-## Tailwind → 인치 변환 규칙
-- 1rem = 16px = 0.222인치
-- p-1=4px=0.056", p-2=8px=0.111", p-3=12px=0.167", p-4=16px=0.222"
-- p-5=20px=0.278", p-6=24px=0.333", p-8=32px=0.444", p-10=40px=0.556"
-- p-12=48px=0.667", p-16=64px=0.889"
-- gap-1=4px, gap-2=8px, gap-3=12px, gap-4=16px, gap-5=20px
-- text-xs=12px≈9pt, text-sm=14px≈10pt, text-base=16px≈12pt
-- text-lg=18px≈14pt, text-xl=20px≈15pt, text-2xl=24px≈18pt
-- text-3xl=30px≈22pt, text-4xl=36px≈27pt, text-5xl=48px≈36pt
-- w-10=40px=0.556", w-12=48px=0.667", w-14=56px=0.778"
-- rounded-lg=8px=0.11", rounded-xl=12px=0.17", rounded-2xl=16px=0.22"
-- 전체 뷰포트: 960px = 13.333인치 (1px ≈ 0.01389인치)
-- max-w-[800px] = 800 × 0.01389 ≈ 11.11인치
+## CSS px → 인치 변환 규칙
+- 슬라이드: 1280px = 13.333인치, 720px = 7.5인치
+- 1px ≈ 0.01042인치
+- padding/margin: 8px=0.083", 12px=0.125", 16px=0.167", 24px=0.25", 32px=0.333", 48px=0.5", 64px=0.667"
+- font-size: 12px≈9pt, 14px≈10pt, 16px≈12pt, 18px≈14pt, 20px≈15pt, 24px≈18pt, 30px≈22pt, 36px≈27pt, 48px≈36pt
+- width: 40px=0.417", 48px=0.5", 56px=0.583"
+- border-radius: 8px=0.083", 12px=0.125", 16px=0.167"
+- gap: 8px=0.083", 12px=0.125", 16px=0.167", 20px=0.208"
 </coordinate_system>
 
 <output_format>
@@ -53,7 +48,7 @@ SYSTEM_PROMPT = """당신은 React + Tailwind CSS 코드를 PowerPoint 슬라이
       "fill": "FFFFFF",
       "border": "E2E8F0",
       "borderWidth": 0.5,
-      "radius": 0.22,
+      "radius": 0.17,
       "shadow": true
     },
     {
@@ -102,14 +97,14 @@ SYSTEM_PROMPT = """당신은 React + Tailwind CSS 코드를 PowerPoint 슬라이
    - radius: roundRect 코너 반경 인치 (선택)
    - shadow: true면 카드 그림자 (선택)
 2. **text**: 텍스트 박스
-   - text: 실제 텍스트 값 (content에서 읽어 삽입)
+   - text: 실제 텍스트 값 (HTML에서 읽어 삽입)
    - fontSize: pt 단위
    - bold, italic: boolean
    - color: hex (# 없음)
    - align: left/center/right
    - valign: top/middle/bottom
    - lineSpacing: 줄간격 배수 (선택)
-3. **chart**: 차트 (recharts → PptxGenJS 차트)
+3. **chart**: 차트 (SVG 차트 → PptxGenJS 차트)
    - chartType: bar/pie/line/doughnut
    - data: [{name, labels, values}]
    - colors: 색상 배열
@@ -117,21 +112,20 @@ SYSTEM_PROMPT = """당신은 React + Tailwind CSS 코드를 PowerPoint 슬라이
 
 <rules>
 ## 변환 규칙
-1. React 코드의 각 JSX 요소를 순서대로 PptxGenJS element로 변환
-2. Tailwind 클래스를 인치 단위 좌표와 스타일로 매핑
-3. className의 색상 클래스 → hex 값 (bg-primary → THEME primary hex)
+1. HTML 요소를 순서대로 PptxGenJS element로 변환
+2. CSS 속성(padding, margin, width, height, font-size 등)을 인치 단위로 매핑
+3. CSS 색상 값 → hex 값 (# 없음)
 4. flex/grid 레이아웃은 절대좌표로 계산
-   - grid-cols-2 gap-5 + padding → 각 카드의 x, y, w, h 계산
-5. 텍스트는 content 데이터의 실제 값을 삽입 (하드코딩)
-6. map() 반복문은 배열 데이터 수만큼 요소 반복 생성
-7. 모든 좌표는 슬라이드 범위 안에 있어야 함 (x+w ≤ 13.333, y+h ≤ 7.5)
+   - grid-cols-2 gap-20px + padding → 각 카드의 x, y, w, h 계산
+5. HTML 텍스트 노드의 실제 값을 text element에 삽입
+6. 반복 요소(카드 등)는 각각 개별 element로 변환
+7. 모든 좌표는 슬라이드 범위 안 (x+w ≤ 13.333, y+h ≤ 7.5)
 8. 색상은 항상 # 없는 6자리 hex
-9. recharts 차트는 chart element로 변환 (Bar→bar, Pie→pie, Line→line)
+9. SVG 차트 요소는 chart element로 변환
 
 ## 주의사항
 - JSON만 출력. 설명이나 마크다운 금지
 - 코드 블록(```)으로 감싸는 것은 허용
-- THEME 참조 → 제공된 테마 색상의 실제 hex 값으로 치환
 </rules>"""
 
 
@@ -188,7 +182,7 @@ async def _generate_slide_layout(
     llm,
     slide_id: str,
     slide_type: str,
-    react_code: str,
+    html_code: str,
     content: dict,
     style: dict,
 ) -> dict | None:
@@ -216,9 +210,9 @@ red: E53E3E
 yellow: F59E0B
 green: 38A169
 
-[React + Tailwind 코드 — 이 코드를 PptxGenJS JSON으로 변환하세요]
-```jsx
-{react_code}
+[HTML + CSS 코드 — 이 코드를 PptxGenJS JSON으로 변환하세요]
+```html
+{html_code}
 ```
 
 [콘텐츠 데이터 — text element의 실제 값으로 사용]
@@ -226,9 +220,9 @@ green: 38A169
 {content_json}
 ```
 
-위 React 코드의 레이아웃을 동일하게 재현하는 PptxGenJS JSON을 생성하세요.
-각 JSX 요소를 순서대로 shape/text/chart element로 변환하세요.
-텍스트는 콘텐츠 데이터의 실제 값을 넣으세요."""
+위 HTML 코드의 레이아웃을 동일하게 재현하는 PptxGenJS JSON을 생성하세요.
+각 HTML 요소를 순서대로 shape/text/chart element로 변환하세요.
+텍스트는 HTML에 포함된 실제 값을 넣으세요."""
 
     response = await llm.ainvoke([
         SystemMessage(content=SYSTEM_PROMPT),
@@ -247,7 +241,7 @@ green: 38A169
 async def pptx_layout_generator(state: PPTState) -> dict:
     """Generate PptxGenJS layout JSON for all slides.
 
-    Transpiles React + Tailwind code → PptxGenJS element JSON.
+    Transpiles HTML + CSS code → PptxGenJS element JSON.
     Runs in parallel with the validation chain.
     """
     llm = get_llm()
@@ -268,11 +262,11 @@ async def pptx_layout_generator(state: PPTState) -> dict:
     for slide in generated_slides:
         sid = slide["slide_id"]
         slide_type = slide.get("type", "unknown")
-        react_code = slide.get("code", "")
+        html_code = slide.get("code", "")
         content = contents_map.get(sid, {}).get("content", {})
 
         tasks.append(
-            _generate_slide_layout(llm, sid, slide_type, react_code, content, style)
+            _generate_slide_layout(llm, sid, slide_type, html_code, content, style)
         )
 
     results = await asyncio.gather(*tasks)

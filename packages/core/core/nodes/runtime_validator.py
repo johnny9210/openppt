@@ -1,91 +1,88 @@
 """
-Phase 3-B: Runtime Validator
-Validates by rendering React code in a sandboxed environment.
-Checks for runtime errors and slide count match.
+Phase 3-B: Runtime Validator (HTML Edition)
+Validates HTML slide count and structural integrity.
+
+Replaces the React sandbox rendering approach — HTML doesn't have
+the same runtime failure modes as JSX (no compilation, no component
+mounting errors). We check slide count match and basic structure.
 """
 
 import logging
+import re
 
-import httpx
-from core.config import VALIDATOR_URL
 from core.state import PPTState
-from core.utils import retry_async
 
 logger = logging.getLogger(__name__)
 
-# Retryable httpx exceptions: connection errors and 5xx server errors
-_RETRYABLE = (
-    httpx.ConnectError,
-    httpx.ConnectTimeout,
-    httpx.ReadTimeout,
-    httpx.WriteTimeout,
-    httpx.PoolTimeout,
-    httpx.RemoteProtocolError,
-)
-
-
-@retry_async(
-    max_attempts=3,
-    base_delay=1.0,
-    backoff_factor=2.0,
-    retryable_exceptions=_RETRYABLE,
-)
-async def _call_runtime_validator(code: str, expected_slide_count: int, spec: dict) -> dict:
-    """POST to the runtime validator endpoint with retry support."""
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            f"{VALIDATOR_URL}/validate/runtime",
-            json={
-                "code": code,
-                "expected_slide_count": expected_slide_count,
-                "spec": spec,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
-
 
 async def runtime_validator(state: PPTState) -> dict:
-    """Validate React code runtime via validator service sandbox."""
+    """Validate HTML presentation structure and slide count."""
+    html_code = state.get("react_code", "")
     spec_slides = state["slide_spec"]["ppt_state"]["presentation"]["slides"]
     expected_slides = len(spec_slides)
-    logger.info("[RuntimeValidator] expected_slides=%d, slide_ids=%s",
-                expected_slides, [s.get("slide_id") for s in spec_slides])
-    logger.info("[RuntimeValidator] react_code length=%d", len(state.get("react_code", "")))
+    expected_ids = {s.get("slide_id") for s in spec_slides}
 
-    try:
-        result = await _call_runtime_validator(
-            state["react_code"], expected_slides, state["slide_spec"]
-        )
-    except Exception as exc:
-        logger.error(
-            "Runtime validator service unavailable after retries: %s", exc
-        )
-        return {
-            "validation_result": {
-                "layer": "runtime",
-                "status": "fail",
-                "errors": [
-                    f"Validator service unavailable: {exc}"
-                ],
-            },
-            "revision_count": state.get("revision_count", 0) + 1,
-        }
+    logger.info(
+        "[RuntimeValidator] expected_slides=%d, slide_ids=%s",
+        expected_slides,
+        sorted(expected_ids),
+    )
 
-    if result["valid"]:
-        logger.info("[RuntimeValidator] PASS")
+    errors = []
+
+    # Count slide containers
+    container_matches = re.findall(
+        r'class="slide-container[^"]*\b(slide_\d+)\b', html_code
+    )
+    actual_count = len(container_matches)
+    found_ids = set(container_matches)
+
+    if actual_count != expected_slides:
+        errors.append({
+            "type": "slide_count_mismatch",
+            "message": f"Expected {expected_slides} slides, found {actual_count}",
+        })
+
+    # Check that each expected slide_id has a container
+    missing_ids = expected_ids - found_ids
+    if missing_ids:
+        errors.append({
+            "type": "missing_slides",
+            "message": f"Missing slide containers for: {', '.join(sorted(missing_ids))}",
+        })
+
+    # Check that the document has basic structure
+    if "<!DOCTYPE html>" not in html_code and "<html" not in html_code:
+        errors.append({
+            "type": "incomplete_document",
+            "message": "HTML document is missing <!DOCTYPE html> or <html> tag",
+        })
+
+    if "<script>" not in html_code:
+        errors.append({
+            "type": "missing_navigation",
+            "message": "No <script> block found — navigation may be missing",
+        })
+
+    is_valid = len(errors) == 0
+
+    if is_valid:
+        logger.info("[RuntimeValidator] PASS - %d slides found", actual_count)
     else:
-        for err in result.get("errors", []):
-            logger.error("[RuntimeValidator] FAIL: type=%s message=%s",
-                         err.get("type", "?"), err.get("message", "?")[:300])
+        for err in errors:
+            logger.error(
+                "[RuntimeValidator] FAIL: type=%s message=%s",
+                err.get("type", "?"),
+                err.get("message", "?"),
+            )
 
     update: dict = {
         "validation_result": {
             "layer": "runtime",
-            "status": "pass" if result["valid"] else "fail",
-            "errors": result.get("errors", []),
+            "status": "pass" if is_valid else "fail",
+            "errors": errors,
         },
     }
-    if not result["valid"]:
+    if not is_valid:
         update["revision_count"] = state.get("revision_count", 0) + 1
     return update

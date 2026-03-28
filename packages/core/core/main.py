@@ -325,8 +325,8 @@ async def edit_slide(request: EditRequest):
             f"{request.user_request}\n\n"
             f"[수정 원칙]\n"
             f"- 위 요청사항을 반영하여 해당 슬라이드만 수정\n"
-            f"- 나머지 레이아웃/디자인은 유지\n"
-            f"- content props 동적 바인딩 유지"
+            f"- 나머지 레이아웃/디자인/CSS는 유지\n"
+            f"- CSS 선택자 스코핑 유지"
         )
 
         pipeline.update_state(
