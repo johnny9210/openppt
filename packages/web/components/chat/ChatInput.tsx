@@ -23,6 +23,7 @@ export default function ChatInput() {
     setSlideCode,
     setSlideDesign,
     setSlideSpec,
+    setPptxLayout,
     setValidationResult,
     addProgressStep,
     addChatMessage,
@@ -121,6 +122,13 @@ export default function ChatInput() {
           case "code":
             setReactCode(data.react_code as string);
             receivedCode = true;
+            break;
+          case "pptx_layout":
+            setPptxLayout({
+              slide_id: data.slide_id as string,
+              type: data.type as string,
+              layout: (data.layout as Record<string, unknown>) || null,
+            });
             break;
           case "validation":
             setValidationResult(data as { layer: string; status: string });

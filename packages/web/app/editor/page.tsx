@@ -16,7 +16,7 @@ export default function EditorPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const previewRef = useRef<SlidePreviewHandle>(null);
-  const { reactCode, slideCodes, slideDesigns, slideSpec, isGenerating, progressSteps, validationResult, sessionId } = useStore();
+  const { reactCode, slideCodes, slideDesigns, slideSpec, pptxLayouts, isGenerating, progressSteps, validationResult, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
   const canExport = !!slideSpec && !!reactCode && !isGenerating;
@@ -26,7 +26,7 @@ export default function EditorPage() {
     setIsExporting(true);
     try {
       setExportStatus("PPTX 생성 중...");
-      await generatePptx(slideSpec);
+      await generatePptx(slideSpec, pptxLayouts);
     } catch (err) {
       console.error("PPTX export failed:", err);
       alert(`다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`);

@@ -31,6 +31,13 @@ interface ChatMessage {
   type?: "request" | "progress" | "design" | "slide" | "code" | "validation" | "complete" | "error";
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface PptxLayout {
+  slide_id: string;
+  type: string;
+  layout: Record<string, any> | null;
+}
+
 interface AppState {
   // Session
   sessionId: string | null;
@@ -41,6 +48,7 @@ interface AppState {
   slideCodes: Record<string, SlideCode>;
   slideDesigns: Record<string, SlideDesign>;
   slideSpec: SlideSpec | null;
+  pptxLayouts: Record<string, PptxLayout>;
   validationResult: { layer?: string; status?: string } | null;
   progressSteps: ProgressStep[];
   chatMessages: ChatMessage[];
@@ -52,6 +60,7 @@ interface AppState {
   setSlideCode: (slide: SlideCode) => void;
   setSlideDesign: (design: SlideDesign) => void;
   setSlideSpec: (spec: SlideSpec) => void;
+  setPptxLayout: (layout: PptxLayout) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
   addChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
@@ -66,6 +75,7 @@ export const useStore = create<AppState>()((set) => ({
   slideCodes: {},
   slideDesigns: {},
   slideSpec: null,
+  pptxLayouts: {},
   validationResult: null,
   progressSteps: [],
   chatMessages: [],
@@ -82,6 +92,10 @@ export const useStore = create<AppState>()((set) => ({
       slideDesigns: { ...state.slideDesigns, [design.slide_id]: design },
     })),
   setSlideSpec: (spec) => set({ slideSpec: spec }),
+  setPptxLayout: (layout) =>
+    set((state) => ({
+      pptxLayouts: { ...state.pptxLayouts, [layout.slide_id]: layout },
+    })),
   setValidationResult: (result) => set({ validationResult: result }),
   addProgressStep: (step) =>
     set((state) => ({ progressSteps: [...state.progressSteps, step] })),
@@ -101,6 +115,7 @@ export const useStore = create<AppState>()((set) => ({
       slideCodes: {},
       slideDesigns: {},
       slideSpec: null,
+      pptxLayouts: {},
       validationResult: null,
       progressSteps: [],
       chatMessages: [],

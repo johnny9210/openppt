@@ -87,6 +87,7 @@ async def save_session(session_id: str, state_values: dict) -> None:
         "slide_contents": state_values.get("slide_contents", []),
         "slide_designs": designs_slim,
         "generated_slides": gen_slides_slim,
+        "pptx_layouts": state_values.get("pptx_layouts", []),
         "react_code": state_values.get("react_code", ""),
         "slide_spec": state_values.get("slide_spec", {}),
         "validation_result": state_values.get("validation_result", {}),
@@ -141,6 +142,7 @@ async def generate_ppt(request: GenerateRequest):
         "slide_spec": {},
         "validation_result": {},
         "revision_count": 0,
+        "pptx_layouts": [],
         "error_log": [],
     }
 
@@ -229,6 +231,14 @@ async def generate_ppt(request: GenerateRequest):
                             ),
                             event="state",
                         )
+
+                    # Phase 3-B: PPTX Layouts
+                    if "pptx_layouts" in update and update["pptx_layouts"]:
+                        for layout_data in update["pptx_layouts"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(layout_data, ensure_ascii=False),
+                                event="pptx_layout",
+                            )
 
                     # Phase 4: Validation
                     if "validation_result" in update:
