@@ -9,7 +9,7 @@ import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
 import DesignViewer from "@/components/design/DesignViewer";
 import { useStore } from "@/lib/store";
-import { downloadPptx } from "@/lib/api";
+import { generatePptx } from "@/lib/pptx";
 
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"preview" | "code" | "design">("preview");
@@ -19,14 +19,14 @@ export default function EditorPage() {
   const { reactCode, slideCodes, slideDesigns, slideSpec, isGenerating, progressSteps, validationResult, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
-  const canExport = !!sessionId && !!reactCode && !isGenerating;
+  const canExport = !!slideSpec && !!reactCode && !isGenerating;
 
   const handleDownloadPptx = async () => {
-    if (!sessionId || isExporting) return;
+    if (!slideSpec || isExporting) return;
     setIsExporting(true);
     try {
-      setExportStatus("PPTX 다운로드 중...");
-      await downloadPptx(sessionId);
+      setExportStatus("PPTX 생성 중...");
+      await generatePptx(slideSpec);
     } catch (err) {
       console.error("PPTX export failed:", err);
       alert(`다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`);
