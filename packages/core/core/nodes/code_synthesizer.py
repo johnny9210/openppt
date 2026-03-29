@@ -104,10 +104,13 @@ LAYOUT_SYSTEM_PROMPT = """당신은 디자인 이미지를 HTML + CSS 코드로 
 - bg-slide-bg: 슬라이드 배경색
 
 ### 디자인 패턴
+★ 디자인 이미지의 시각적 스타일을 최우선으로 따르세요.
+  이미지에서 보이는 카드 모서리 반경, 그림자 강도, 아이콘 형태, 장식 패턴, 배경 처리를 그대로 CSS로 재현하세요.
+
+이미지에서 판단이 어려울 때만 사용하는 참고 기본값:
 - 카드: bg-white, border-radius 16px, box-shadow 0 2px 8px rgba(0,0,0,0.06), border 1px solid #E2E8F0
-- 아이콘 배지: 56px 원형, 브랜드 색상 배경, 중앙 정렬, text-white
-- 장식 원: position absolute, border-radius 50%, 반투명 배경색, z-index 0
-- 하단 바: height 8-12px, 전체 너비, 브랜드 색상
+- 아이콘 배지: 48-56px, 브랜드 색상 배경, 중앙 정렬, text-white
+- 하단 바: height 4-12px, 전체 너비, 브랜드 색상
 - 액센트 라인: width 48px, height 4px, 브랜드 색상, border-radius
 - FontAwesome 아이콘: <i class="fas fa-icon-name"></i>
 </styling_rules>

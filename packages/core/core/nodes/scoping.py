@@ -15,6 +15,63 @@ from core.utils import robust_parse_json, LLMJSONParseError
 
 logger = logging.getLogger(__name__)
 
+# ── Color Palettes (deterministic mapping — LLM picks keyword, code picks colors) ──
+
+COLOR_PALETTES = {
+    "tech": {
+        "primary_color": "#2563EB",
+        "accent_color": "#38BDF8",
+        "background": "#EFF6FF",
+    },
+    "education": {
+        "primary_color": "#059669",
+        "accent_color": "#2DD4BF",
+        "background": "#ECFDF5",
+    },
+    "business": {
+        "primary_color": "#1E40AF",
+        "accent_color": "#D97706",
+        "background": "#EFF6FF",
+    },
+    "marketing": {
+        "primary_color": "#DC2626",
+        "accent_color": "#F97316",
+        "background": "#FEF2F2",
+    },
+    "creative": {
+        "primary_color": "#EA580C",
+        "accent_color": "#F59E0B",
+        "background": "#FFF7ED",
+    },
+    "lifestyle": {
+        "primary_color": "#E11D48",
+        "accent_color": "#F472B6",
+        "background": "#FFF1F2",
+    },
+    "minimal": {
+        "primary_color": "#475569",
+        "accent_color": "#94A3B8",
+        "background": "#F8FAFC",
+    },
+    "entertainment": {
+        "primary_color": "#7C3AED",
+        "accent_color": "#D946EF",
+        "background": "#F5F3FF",
+    },
+    "medical": {
+        "primary_color": "#0891B2",
+        "accent_color": "#34D399",
+        "background": "#ECFEFF",
+    },
+    "environment": {
+        "primary_color": "#16A34A",
+        "accent_color": "#84CC16",
+        "background": "#F0FDF4",
+    },
+}
+
+DEFAULT_COLOR_THEME = "minimal"
+
 SCOPING_PROMPT = """당신은 프레젠테이션 기획 전문가입니다. 사용자의 요청을 깊이 분석하여 체계적인 프레젠테이션 기획서(Research Brief)를 작성합니다.
 
 ## 분석 절차
@@ -76,6 +133,19 @@ Professional key points slide — visual structure only (no text).
 Generate this key points visual structure (NO TEXT) now.
 ```
 
+## 색상 테마 선택 (중요!)
+프레젠테이션 주제에 가장 어울리는 color_theme을 선택하세요:
+- tech: 기술, IT, AI, 소프트웨어, 데이터, 자동화
+- education: 교육, 학습, 성장, 강의, 워크숍, 세미나
+- business: 비즈니스, 금융, 경영, 컨설팅, 투자
+- marketing: 마케팅, 광고, 브랜딩, 홍보, PR, 세일즈
+- creative: 디자인, 예술, 창작, 콘텐츠 제작
+- lifestyle: 뷰티, 패션, 라이프스타일, 푸드, 여행
+- minimal: 미니멀, 모던, 일반 발표, 보고서
+- entertainment: 엔터테인먼트, 게임, 미디어, 음악, 영상
+- medical: 의료, 건강, 웰니스, 헬스케어, 제약
+- environment: 환경, 지속가능성, ESG, 에너지, 농업
+
 ## 출력 형식
 반드시 아래 JSON 형식으로만 응답하세요:
 
@@ -85,11 +155,8 @@ Generate this key points visual structure (NO TEXT) now.
     "audience": "대상 청중",
     "key_message": "전달하려는 핵심 메시지",
     "style": {
-        "mood": "professional | creative | minimal | bold",
-        "primary_color": "#6366F1",
-        "accent_color": "#818CF8",
-        "background": "#F5F7FA",
-        "text_color": "#1A202C"
+        "mood": "professional | creative | minimal | bold 중 택 1",
+        "color_theme": "tech | education | business | marketing | creative | lifestyle | minimal | entertainment | medical | environment 중 택 1"
     },
     "slide_plan": [
         {
@@ -114,7 +181,7 @@ Generate this key points visual structure (NO TEXT) now.
 - 각 슬라이드의 key_points는 2-5개
 - design_prompt는 위 가이드에 따라 영어로 구체적으로 작성 (Image Type + Layout + Visual Theme)
 - data 필드는 차트/그래프에 사용할 구체적 데이터 (없으면 null)
-- 색상은 주제와 분위기에 맞게 선택 (기본: 보라/남색 계열 다크 테마)
+- color_theme은 프레젠테이션 주제에 가장 어울리는 것을 선택하세요
 
 ## 슬라이드 타입 선택 가이드 (중요!)
 연속으로 같은 타입을 사용하지 마세요. 슬라이드마다 콘텐츠 특성에 맞는 타입을 선택하세요:
@@ -160,6 +227,17 @@ async def scoping(state: PPTState, config: RunnableConfig) -> dict:
         raise ValueError(
             f"Scoping could not parse research brief: {exc}"
         ) from exc
+
+    # ── Apply color palette from theme keyword ──
+    style = brief.get("style", {})
+    color_theme = style.get("color_theme", DEFAULT_COLOR_THEME)
+    palette = COLOR_PALETTES.get(color_theme, COLOR_PALETTES[DEFAULT_COLOR_THEME])
+    style["primary_color"] = palette["primary_color"]
+    style["accent_color"] = palette["accent_color"]
+    style["background"] = palette["background"]
+    style["text_color"] = "#1A202C"
+    brief["style"] = style
+    logger.info("[Scoping] color_theme=%s → primary=%s", color_theme, palette["primary_color"])
 
     logger.info("[Scoping] tokens: in=%d out=%d", input_tokens, output_tokens)
 

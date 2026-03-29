@@ -17,38 +17,111 @@ from core.services.nano_banana import generate_slide_image
 logger = logging.getLogger(__name__)
 
 
-# ── Shared Visual Identity (prepended to all prompts) ──────
+# ── Visual Identity: Base rules (common to all themes) ──────
 
-VISUAL_IDENTITY = """## Visual Identity (MUST apply to every slide)
+VISUAL_IDENTITY_BASE = """## Slide Design Rules (MUST apply)
 - Aspect ratio: 16:9 widescreen (960×540 proportions)
-- Background: Clean light gray (#F5F7FA), NOT white, NOT dark
-- Card elements: Pure white (#FFFFFF), border-radius 16px, subtle shadow, thin border (#E2E8F0)
-- Icon badges: Circular, 50-60px, solid color fill ({primary_color} or {accent_color}), white emoji inside
-- Accent bar: Thin colored line (width 48px, height 4px) using {primary_color}
-- Decorations: Subtle geometric network pattern (thin lines + small dots), opacity 10-15%
-- Overall mood: McKinsey consulting deck meets Apple Keynote — clean, confident, premium
 
 ## CRITICAL: Text-Free Image Rule
 This image will be used as a BACKGROUND with text overlaid by code later.
 - DO NOT render any Korean or English text in the image
-- Leave title areas as clean blank zones (light background, no text)
+- Leave title areas as clean blank zones
 - Leave body/description areas empty within cards and containers
 - Cards should show visual structure (borders, shadows, icons) but NO text labels
 - Icon badges may contain emoji symbols but NO text words
-- The image provides ONLY visual structure, decorations, colors, and layout — ALL text comes from code overlay
 
 ## Whitespace & Density Rules
 - Maximum 6 visual elements per slide (cards, badges, decorations)
 - At least 30% of slide area must be empty for text overlay space
-- Generous padding inside cards (24-28px) and between cards (20px gaps)
-- Title zone: Leave clean open area at top 15-25% of slide for title overlay
+- Generous padding inside cards and between cards
+- Title zone: Clean open area at top 15-25% of slide
 
-## DO NOT (Negative Instructions)
+## DO NOT
 - NO text of any kind (Korean, English, numbers) — except emoji symbols in icon badges
-- NO dark mode, NO glassmorphism, NO gradient backgrounds
-- NO 3D effects, NO extreme drop shadows, NO bevels
+- NO dark mode, NO 3D effects, NO extreme drop shadows
 - NO neon or overly saturated colors
 - NO overcrowded layouts"""
+
+
+# ── Theme-specific visual styles (mood-driven, not CSS-level) ──────
+
+THEME_VISUAL_STYLES = {
+    "tech": """## Visual Style
+Clean minimal tech slide background, soft light blue ({background}).
+Subtle dot grid or circuit trace pattern at 5% opacity.
+Geometric line accents in {primary_color}. White card placeholders with thin borders
+and subtle shadows, border-radius 12px. Icon areas as rounded-square badges.
+Precise, data-driven, modern tech company pitch deck mood.""",
+
+    "education": """## Visual Style
+Friendly approachable slide background, soft mint ({background}).
+Subtle notebook ruled-line or open-book pattern at 5% opacity.
+Warm green accents in {primary_color} with teal highlights ({accent_color}).
+Rounded white card placeholders with medium shadows, border-radius 16px.
+Icon areas as circular badges. Welcoming, clear, educational workshop mood.""",
+
+    "business": """## Visual Style
+Conservative corporate slide background, soft blue-gray ({background}).
+Clean horizontal rule structure, minimal decoration.
+Sharp-cornered white card placeholders with strong borders, border-radius 8px.
+Navy accents ({primary_color}) with gold highlights ({accent_color}).
+Structured grid layout. Authoritative McKinsey consulting report mood.""",
+
+    "marketing": """## Visual Style
+Bold vibrant slide background, warm rose-tinted ({background}).
+Dynamic diagonal stripe or wave pattern at 8% opacity.
+Red-to-orange gradient accents from {primary_color} to {accent_color}.
+White card placeholders with large rounded corners and strong drop shadows,
+border-radius 20px, no visible border. Icon areas as large circular badges with gradient fill.
+Energetic, attention-grabbing, advertising agency pitch mood.""",
+
+    "creative": """## Visual Style
+Artistic warm slide background, soft peach ({background}).
+Organic flowing curves and brush stroke textures at 8% opacity.
+Orange and amber accents ({primary_color}, {accent_color}).
+White card placeholders with varied rounded corners and soft shadows,
+border-radius 20px. Playful asymmetric layout feel.
+Creative studio portfolio mood — artistic and expressive.""",
+
+    "lifestyle": """## Visual Style
+Elegant soft slide background, light rose ({background}).
+Flowing gradient curves and organic shapes at 8% opacity.
+Rose pink accents ({primary_color}) with soft pink highlights ({accent_color}).
+White card placeholders with very rounded corners and gentle shadows,
+border-radius 24px. Soft, premium beauty editorial mood.""",
+
+    "minimal": """## Visual Style
+Ultra-minimal slide background, barely-there off-white ({background}).
+Almost no decoration — pure negative space.
+Slate gray accents ({primary_color}) with light gray ({accent_color}).
+Barely visible card outlines, extremely thin borders, nearly no shadows,
+border-radius 12px. Maximum whitespace.
+Apple Keynote simplicity — less is more.""",
+
+    "entertainment": """## Visual Style
+Energetic vibrant slide background, soft lavender ({background}).
+Star sparkle or confetti scatter pattern at 8% opacity.
+Purple-to-magenta gradient accents from {primary_color} to {accent_color}.
+White card placeholders with medium rounded corners and colorful shadows,
+border-radius 16px. Icon areas as circular badges with vivid gradient fill.
+Fun, bold, entertainment industry showcase mood.""",
+
+    "medical": """## Visual Style
+Clean trustworthy slide background, soft cyan-tinted ({background}).
+Subtle cross or plus pattern at 5% opacity.
+Teal accents ({primary_color}) with emerald highlights ({accent_color}).
+White card placeholders with clean corners and precise borders,
+border-radius 12px. Structured and balanced layout.
+Healthcare professional — clean, precise, trustworthy mood.""",
+
+    "environment": """## Visual Style
+Fresh natural slide background, soft sage green ({background}).
+Organic leaf vein or topographic contour pattern at 5% opacity.
+Green accents ({primary_color}) with lime highlights ({accent_color}).
+White card placeholders with soft rounded corners and gentle shadows,
+border-radius 16px. Nature-inspired flowing layout feel.
+Sustainability report mood — fresh, organic, hopeful.""",
+}
 
 
 def _build_design_prompt(
@@ -58,16 +131,26 @@ def _build_design_prompt(
 ) -> str:
     """Build Nano Banana prompt for slide design generation.
 
-    Uses LLM-generated design_prompt from scoping phase + visual identity guardrails.
+    Uses LLM-generated design_prompt from scoping phase
+    + theme-specific visual style + base design rules.
     """
     style = brief.get("style", {})
     primary = style.get("primary_color", "#6366F1")
     accent = style.get("accent_color", "#818CF8")
+    background = style.get("background", "#F5F7FA")
+    color_theme = style.get("color_theme", "minimal")
 
-    visual_identity = VISUAL_IDENTITY.format(
+    # Pick theme-specific visual style
+    theme_style = THEME_VISUAL_STYLES.get(
+        color_theme, THEME_VISUAL_STYLES["minimal"]
+    )
+    formatted_theme = theme_style.format(
         primary_color=primary,
         accent_color=accent,
+        background=background,
     )
+
+    visual_identity = f"{formatted_theme}\n\n{VISUAL_IDENTITY_BASE}"
 
     # Add style reference instruction when a reference image is attached
     if reference_image:
@@ -85,7 +168,8 @@ Maintain this consistent look while adapting the layout to the current slide typ
             f"Slide {slide.get('slide_id')} missing design_prompt from scoping"
         )
 
-    logger.info("[DesignGen] Using LLM-generated design_prompt for %s", slide.get("slide_id"))
+    logger.info("[DesignGen] Using LLM-generated design_prompt for %s (theme=%s)",
+                slide.get("slide_id"), color_theme)
     return f"{design_prompt}\n\n{visual_identity}"
 
 
