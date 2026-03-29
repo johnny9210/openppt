@@ -9,7 +9,10 @@ Prompt strategy based on Nano Banana Pro best practices:
   - Professional style references (McKinsey, Apple Keynote level)
 """
 
+import asyncio
 import logging
+
+from langchain_core.runnables import RunnableConfig
 
 from core.state import DesignGeneratorState
 from core.services.nano_banana import generate_slide_image
@@ -495,8 +498,12 @@ COMPLEX_SLIDE_TYPES = {
 }
 
 
-async def cover_design_generator(state: DesignGeneratorState) -> dict:
+async def cover_design_generator(state: DesignGeneratorState, config: RunnableConfig) -> dict:
     """Generate cover slide design FIRST — its image becomes the style reference for all other slides."""
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     from core.config import GEMINI_THINKING_BUDGET
 
     slide = state["slide_plan"]
@@ -527,8 +534,12 @@ async def cover_design_generator(state: DesignGeneratorState) -> dict:
     }
 
 
-async def design_generator(state: DesignGeneratorState) -> dict:
+async def design_generator(state: DesignGeneratorState, config: RunnableConfig) -> dict:
     """Generate design image for a non-cover slide, using cover as style reference."""
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     from core.config import GEMINI_THINKING_BUDGET
 
     slide = state["slide_plan"]

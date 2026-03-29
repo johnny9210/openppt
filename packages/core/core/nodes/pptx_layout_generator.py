@@ -9,8 +9,11 @@ import json
 import logging
 import re
 
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_core.messages import SystemMessage, HumanMessage
-from core.config import get_llm
+from langchain_core.runnables import RunnableConfig
+
+from core.config import get_llm, LLM_TIMEOUT
 from core.state import PPTState
 
 logger = logging.getLogger(__name__)
@@ -224,26 +227,43 @@ green: 38A169
 각 HTML 요소를 순서대로 shape/text/chart element로 변환하세요.
 텍스트는 HTML에 포함된 실제 값을 넣으세요."""
 
-    response = await llm.ainvoke([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=prompt),
-    ])
+    input_tokens = 0
+    output_tokens = 0
+
+    with get_usage_metadata_callback() as cb:
+        response = await asyncio.wait_for(
+            llm.ainvoke([
+                SystemMessage(content=SYSTEM_PROMPT),
+                HumanMessage(content=prompt),
+            ]),
+            timeout=LLM_TIMEOUT,
+        )
+        if cb.usage_metadata:
+            for _, usage in cb.usage_metadata.items():
+                input_tokens += usage.get("input_tokens", 0)
+                output_tokens += usage.get("output_tokens", 0)
+
+    tokens = {"input_tokens": input_tokens, "output_tokens": output_tokens}
 
     layout = _extract_json(response.content)
     if layout and _validate_layout(layout):
         logger.info("[PptxLayout] %s (%s) - %d elements", slide_id, slide_type, len(layout["elements"]))
-        return layout
+        return layout, tokens
     else:
         logger.warning("[PptxLayout] %s (%s) - invalid JSON, skipping", slide_id, slide_type)
-        return None
+        return None, tokens
 
 
-async def pptx_layout_generator(state: PPTState) -> dict:
+async def pptx_layout_generator(state: PPTState, config: RunnableConfig) -> dict:
     """Generate PptxGenJS layout JSON for all slides.
 
     Transpiles HTML + CSS code → PptxGenJS element JSON.
     Runs in parallel with the validation chain.
     """
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     llm = get_llm()
     style = state.get("research_brief", {}).get("style", {})
 
@@ -272,14 +292,22 @@ async def pptx_layout_generator(state: PPTState) -> dict:
     results = await asyncio.gather(*tasks)
 
     layouts = []
-    for slide, layout in zip(generated_slides, results):
+    total_in = 0
+    total_out = 0
+    for slide, (layout, tokens) in zip(generated_slides, results):
         layouts.append({
             "slide_id": slide["slide_id"],
             "type": slide.get("type", "unknown"),
             "layout": layout,  # None if failed
         })
+        total_in += tokens.get("input_tokens", 0)
+        total_out += tokens.get("output_tokens", 0)
 
     success = sum(1 for l in layouts if l["layout"] is not None)
-    logger.info("[PptxLayout] Done: %d/%d slides converted", success, len(layouts))
+    logger.info("[PptxLayout] Done: %d/%d slides converted, tokens: in=%d out=%d",
+                success, len(layouts), total_in, total_out)
 
-    return {"pptx_layouts": layouts}
+    return {
+        "pptx_layouts": layouts,
+        "token_usage": {"input_tokens": total_in, "output_tokens": total_out},
+    }

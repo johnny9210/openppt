@@ -31,6 +31,19 @@ interface ChatMessage {
   type?: "request" | "progress" | "design" | "slide" | "code" | "validation" | "complete" | "error";
 }
 
+interface WebSearchResult {
+  url: string;
+  title: string;
+  content: string;
+}
+
+interface SlideWebResearch {
+  slide_id: string;
+  type: string;
+  topic: string;
+  results: WebSearchResult[];
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface PptxLayout {
   slide_id: string;
@@ -47,6 +60,7 @@ interface AppState {
   reactCode: string;
   slideCodes: Record<string, SlideCode>;
   slideDesigns: Record<string, SlideDesign>;
+  webResearch: Record<string, SlideWebResearch>;
   slideSpec: SlideSpec | null;
   pptxLayouts: Record<string, PptxLayout>;
   validationResult: { layer?: string; status?: string } | null;
@@ -59,6 +73,7 @@ interface AppState {
   setReactCode: (code: string) => void;
   setSlideCode: (slide: SlideCode) => void;
   setSlideDesign: (design: SlideDesign) => void;
+  setWebResearch: (research: Record<string, SlideWebResearch>) => void;
   setSlideSpec: (spec: SlideSpec) => void;
   setPptxLayout: (layout: PptxLayout) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
@@ -74,6 +89,7 @@ export const useStore = create<AppState>()((set) => ({
   reactCode: "",
   slideCodes: {},
   slideDesigns: {},
+  webResearch: {},
   slideSpec: null,
   pptxLayouts: {},
   validationResult: null,
@@ -91,6 +107,7 @@ export const useStore = create<AppState>()((set) => ({
     set((state) => ({
       slideDesigns: { ...state.slideDesigns, [design.slide_id]: design },
     })),
+  setWebResearch: (research) => set({ webResearch: research }),
   setSlideSpec: (spec) => set({ slideSpec: spec }),
   setPptxLayout: (layout) =>
     set((state) => ({
@@ -114,6 +131,7 @@ export const useStore = create<AppState>()((set) => ({
       reactCode: "",
       slideCodes: {},
       slideDesigns: {},
+      webResearch: {},
       slideSpec: null,
       pptxLayouts: {},
       validationResult: null,

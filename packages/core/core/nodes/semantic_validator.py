@@ -10,7 +10,10 @@ import asyncio
 import json
 import logging
 
-from core.config import get_llm
+from langchain_core.callbacks import get_usage_metadata_callback
+from langchain_core.runnables import RunnableConfig
+
+from core.config import get_llm, LLM_TIMEOUT
 from core.state import PPTState
 
 logger = logging.getLogger(__name__)
@@ -43,8 +46,10 @@ type: {slide_type}
 """
 
 
-async def _verify_slide(slide: dict, generated: str) -> dict:
-    """Verify a single slide's content reflection with LLM."""
+async def _verify_slide(slide: dict, generated: str) -> tuple[dict, dict]:
+    """Verify a single slide's content reflection with LLM.
+    Returns (result, token_usage).
+    """
     llm = get_llm()
 
     prompt = VERIFY_PROMPT.format(
@@ -54,32 +59,47 @@ async def _verify_slide(slide: dict, generated: str) -> dict:
         generated=generated,
     )
 
-    response = await llm.ainvoke([{"role": "user", "content": prompt}])
+    input_tokens = 0
+    output_tokens = 0
+
+    with get_usage_metadata_callback() as cb:
+        response = await asyncio.wait_for(
+            llm.ainvoke([{"role": "user", "content": prompt}]),
+            timeout=LLM_TIMEOUT,
+        )
+        if cb.usage_metadata:
+            for _, usage in cb.usage_metadata.items():
+                input_tokens += usage.get("input_tokens", 0)
+                output_tokens += usage.get("output_tokens", 0)
+
+    tokens = {"input_tokens": input_tokens, "output_tokens": output_tokens}
 
     try:
-        return json.loads(response.content)
+        return json.loads(response.content), tokens
     except json.JSONDecodeError:
-        # Try to extract JSON from response
         try:
             text = response.content
             start = text.index("{")
             end = text.rindex("}") + 1
-            return json.loads(text[start:end])
+            return json.loads(text[start:end]), tokens
         except (ValueError, json.JSONDecodeError):
             return {
                 "pass": False,
                 "issues": ["LLM 응답 파싱 실패"],
                 "summary": "검증 응답 파싱 오류",
-            }
+            }, tokens
 
 
 async def _verify_all_slides(
     slides: list[dict],
     generated_map: dict[str, str],
-) -> tuple[bool, list[dict]]:
-    """Verify all slides in parallel. Returns (passed, failed_slides)."""
+) -> tuple[bool, list[dict], dict]:
+    """Verify all slides in parallel. Returns (passed, failed_slides, token_usage)."""
+    total_in = 0
+    total_out = 0
 
     async def _check_one(slide):
+        nonlocal total_in, total_out
         html_code = generated_map.get(slide["slide_id"], "")
         if not html_code:
             return {
@@ -89,7 +109,10 @@ async def _verify_all_slides(
                 "summary": "생성된 코드 없음",
             }
 
-        result = await _verify_slide(slide, html_code)
+        result, tokens = await _verify_slide(slide, html_code)
+        total_in += tokens.get("input_tokens", 0)
+        total_out += tokens.get("output_tokens", 0)
+
         if not result.get("pass", False):
             return {
                 "slide_id": slide["slide_id"],
@@ -102,7 +125,11 @@ async def _verify_all_slides(
     results = await asyncio.gather(*[_check_one(s) for s in slides])
     failed_slides = [r for r in results if r is not None]
 
-    return len(failed_slides) == 0, failed_slides
+    return (
+        len(failed_slides) == 0,
+        failed_slides,
+        {"input_tokens": total_in, "output_tokens": total_out},
+    )
 
 
 # --- STEP 2: Fix Prompt Generator ---
@@ -133,8 +160,12 @@ def _generate_fix_prompt(failed_slides: list[dict]) -> str:
 
 # --- Main entry point ---
 
-async def semantic_validator(state: PPTState) -> dict:
+async def semantic_validator(state: PPTState, config: RunnableConfig) -> dict:
     """Semantic Validator - verifies content reflection in generated HTML."""
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     slide_spec = state["slide_spec"]
     slides = slide_spec["ppt_state"]["presentation"]["slides"]
 
@@ -161,7 +192,7 @@ async def semantic_validator(state: PPTState) -> dict:
     else:
         slides_to_verify = slides
 
-    passed, failed = await _verify_all_slides(slides_to_verify, generated_map)
+    passed, failed, verify_tokens = await _verify_all_slides(slides_to_verify, generated_map)
 
     total = len(slides)
     passed_count = total - len(failed)
@@ -190,7 +221,10 @@ async def semantic_validator(state: PPTState) -> dict:
         "fix_prompt": None if passed else _generate_fix_prompt(failed),
     }
 
-    update: dict = {"validation_result": result}
+    update: dict = {
+        "validation_result": result,
+        "token_usage": verify_tokens,
+    }
     if not passed:
         update["revision_count"] = state.get("revision_count", 0) + 1
         update["error_log"] = [

@@ -1,6 +1,6 @@
 """
 LangGraph Pipeline - PPT Code Generation
-Architecture: Scoping -> Cover-First Design -> Parallel (Text + Remaining Design) -> Synthesis -> Validation
+Architecture: Scoping -> Web Research -> Cover-First Design -> Parallel (Text + Remaining Design) -> Synthesis -> Validation
 
 Uses LangGraph v1.0.10 API:
 - StateGraph with conditional edges
@@ -8,6 +8,9 @@ Uses LangGraph v1.0.10 API:
 - Cover slide generated first for style reference
 - interrupt() for human-in-the-loop
 - get_stream_writer for SSE progress
+- Token tracking via get_usage_metadata_callback (deep_research pattern)
+- Cancel support via asyncio.Event (deep_research pattern)
+- Web search via Tavily API (deep_research pattern)
 """
 
 import logging
@@ -25,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 # Import nodes
 from core.nodes.scoping import scoping
+from core.nodes.web_researcher import web_researcher
 from core.nodes.text_generator import text_generator
 from core.nodes.design_generator import cover_design_generator, design_generator
 from core.nodes.code_synthesizer import code_synthesizer
@@ -165,15 +169,34 @@ def semantic_decision(state: PPTState) -> Command:
 
 # --- Progress wrapper nodes ---
 
-async def progress_scoping(state: PPTState) -> dict:
+async def progress_scoping(state: PPTState, config) -> dict:
     writer = get_stream_writer()
-    writer({"phase": 1, "step": "scoping", "message": "요청 분석 중... (dee_research)"})
-    result = await scoping(state)
+    writer({"phase": 1, "step": "scoping", "message": "요청 분석 중..."})
+    result = await scoping(state, config)
     slide_count = len(result.get("research_brief", {}).get("slide_plan", []))
     writer({
         "phase": 1,
         "step": "scoping",
         "message": f"분석 완료: {slide_count}장 슬라이드 기획",
+        "done": True,
+    })
+    return result
+
+
+async def progress_web_researcher(state: PPTState, config) -> dict:
+    writer = get_stream_writer()
+    from core.config import TAVILY_API_KEY
+    if not TAVILY_API_KEY:
+        writer({"phase": 1, "step": "web_research", "message": "웹 리서치 건너뜀 (API 키 없음)", "done": True})
+        return {}
+    slide_plan = state.get("research_brief", {}).get("slide_plan", [])
+    writer({"phase": 1, "step": "web_research", "message": f"웹 리서치 중... ({len(slide_plan)}장 슬라이드)"})
+    result = await web_researcher(state, config)
+    enriched = sum(1 for s in result.get("research_brief", {}).get("slide_plan", []) if s.get("web_research"))
+    writer({
+        "phase": 1,
+        "step": "web_research",
+        "message": f"웹 리서치 완료: {enriched}장 데이터 보강",
         "done": True,
     })
     return result
@@ -217,7 +240,7 @@ def progress_remaining_design_dispatcher(state: PPTState) -> Command:
     return result
 
 
-async def progress_code_synthesizer(state: PPTState) -> dict:
+async def progress_code_synthesizer(state: PPTState, config) -> dict:
     writer = get_stream_writer()
     designs = state.get("slide_designs", [])
     contents = state.get("slide_contents", [])
@@ -230,7 +253,7 @@ async def progress_code_synthesizer(state: PPTState) -> dict:
         "step": "code_synthesizer",
         "message": "3-Pass HTML 합성 중... (레이아웃 → 텍스트 삽입 → 크기 조정)",
     })
-    result = await code_synthesizer(state)
+    result = await code_synthesizer(state, config)
     count = len(result.get("generated_slides", []))
     logger.info("[Pipeline] code_synthesizer DONE - generated %d slides", count)
     writer({
@@ -258,17 +281,17 @@ def progress_code_assembly(state: PPTState) -> dict:
     return result
 
 
-async def progress_pptx_layout_generator(state: PPTState) -> dict:
+async def progress_pptx_layout_generator(state: PPTState, config) -> dict:
     writer = get_stream_writer()
     writer({"phase": 3, "step": "pptx_layout", "message": "PPTX 레이아웃 변환 중..."})
-    result = await pptx_layout_generator(state)
+    result = await pptx_layout_generator(state, config)
     success = sum(1 for l in result.get("pptx_layouts", []) if l.get("layout"))
     total = len(result.get("pptx_layouts", []))
     writer({"phase": 3, "step": "pptx_layout", "message": f"PPTX 레이아웃 변환 완료: {success}/{total}", "done": True})
     return result
 
 
-async def progress_ast_validator(state: PPTState) -> dict:
+async def progress_ast_validator(state: PPTState, config) -> dict:
     writer = get_stream_writer()
     writer({"phase": 4, "step": "ast_validator", "message": "AST 검증 중..."})
     result = await ast_validator(state)
@@ -277,7 +300,7 @@ async def progress_ast_validator(state: PPTState) -> dict:
     return result
 
 
-async def progress_runtime_validator(state: PPTState) -> dict:
+async def progress_runtime_validator(state: PPTState, config) -> dict:
     writer = get_stream_writer()
     writer({"phase": 4, "step": "runtime_validator", "message": "런타임 검증 중..."})
     result = await runtime_validator(state)
@@ -291,10 +314,10 @@ async def progress_runtime_validator(state: PPTState) -> dict:
     return result
 
 
-async def progress_semantic_validator(state: PPTState) -> dict:
+async def progress_semantic_validator(state: PPTState, config) -> dict:
     writer = get_stream_writer()
     writer({"phase": 4, "step": "semantic_validator", "message": "시맨틱 검증 중..."})
-    result = await semantic_validator(state)
+    result = await semantic_validator(state, config)
     status = result["validation_result"]["status"]
     writer({
         "phase": 4,
@@ -312,17 +335,21 @@ def build_pipeline():
 
     Flow:
       scoping
-        → cover_and_text_dispatcher (Send: all text_generators + cover_design_generator)
-          → [text_generator x N] + [cover_design_generator x 1] (parallel)
-            → remaining_design_dispatcher (reads cover image, Send: design_generator x N-1)
-              → [design_generator x N-1] (parallel, with cover as style reference)
-                → code_synthesizer
-                  → code_assembly → validation chain
+        → web_researcher (Tavily search, enriches research_brief)
+          → cover_and_text_dispatcher (Send: all text_generators + cover_design_generator)
+            → [text_generator x N] + [cover_design_generator x 1] (parallel)
+              → remaining_design_dispatcher (reads cover image, Send: design_generator x N-1)
+                → [design_generator x N-1] (parallel, with cover as style reference)
+                  → code_synthesizer
+                    → code_assembly → validation chain
     """
     graph = StateGraph(PPTState)
 
     # Phase 1: Scoping
     graph.add_node("scoping", progress_scoping)
+
+    # Phase 1.5: Web Research (Tavily)
+    graph.add_node("web_researcher", progress_web_researcher)
 
     # Phase 2a: Cover + Text parallel dispatch
     graph.add_node("cover_and_text_dispatcher", progress_cover_and_text_dispatcher)
@@ -348,9 +375,10 @@ def build_pipeline():
 
     # --- Edges ---
 
-    # Phase 1: Scoping
+    # Phase 1: Scoping → Web Research → Dispatch
     graph.add_edge(START, "scoping")
-    graph.add_edge("scoping", "cover_and_text_dispatcher")
+    graph.add_edge("scoping", "web_researcher")
+    graph.add_edge("web_researcher", "cover_and_text_dispatcher")
     # cover_and_text_dispatcher returns Command(goto=list[Send])
 
     # Phase 2a: Fan-in after text + cover design complete

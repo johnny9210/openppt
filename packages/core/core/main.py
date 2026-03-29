@@ -26,7 +26,10 @@ from core.pipeline import get_pipeline
 from core.database import get_sessions_collection
 from core.services.minio_client import upload_session
 
-app = FastAPI(title="PPT Code Generation API", version="0.3.0")
+app = FastAPI(title="PPT Code Generation API", version="0.4.0")
+
+# Cancel events registry (deep_research pattern)
+_cancel_events: dict[str, asyncio.Event] = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,6 +95,7 @@ async def save_session(session_id: str, state_values: dict) -> None:
             "slide_spec": state_values.get("slide_spec", {}),
             "validation_result": state_values.get("validation_result", {}),
             "revision_count": state_values.get("revision_count", 0),
+            "token_usage": state_values.get("token_usage", {}),
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
         }
@@ -131,7 +135,11 @@ async def generate_ppt(request: GenerateRequest):
     """Generate PPT code from natural language. Streams progress via SSE."""
     pipeline = get_pipeline()
     thread_id = f"thread_{uuid.uuid4().hex[:12]}"
-    config = {"configurable": {"thread_id": thread_id}}
+
+    # Cancel support (deep_research pattern)
+    cancel_event = asyncio.Event()
+    _cancel_events[thread_id] = cancel_event
+    config = {"configurable": {"thread_id": thread_id, "cancel_event": cancel_event}}
 
     initial_state = {
         "user_request": request.user_request,
@@ -146,6 +154,7 @@ async def generate_ppt(request: GenerateRequest):
         "revision_count": 0,
         "pptx_layouts": [],
         "error_log": [],
+        "token_usage": {},
     }
 
     logger.info("[SSE] Session started: %s", thread_id)
@@ -251,12 +260,21 @@ async def generate_ppt(request: GenerateRequest):
                             event="validation",
                         )
 
+                    # Token usage (accumulated)
+                    if "token_usage" in update and update["token_usage"]:
+                        yield ServerSentEvent(
+                            raw_data=json.dumps(update["token_usage"], ensure_ascii=False),
+                            event="token_usage",
+                        )
+
         # Final state
         final_state = pipeline.get_state(config)
         final_slide_spec = final_state.values.get("slide_spec", {})
+        final_token_usage = final_state.values.get("token_usage", {})
         print(f"[COMPLETE] react_code: {len(final_state.values.get('react_code', ''))} chars", flush=True)
         print(f"[COMPLETE] slide_spec slides: {len(final_slide_spec.get('ppt_state', {}).get('presentation', {}).get('slides', []))}", flush=True)
         print(f"[COMPLETE] revision_count: {final_state.values.get('revision_count', 0)}", flush=True)
+        print(f"[COMPLETE] token_usage: {final_token_usage}", flush=True)
 
         # Save to MongoDB
         await save_session(thread_id, final_state.values)
@@ -272,10 +290,18 @@ async def generate_ppt(request: GenerateRequest):
                         "validation_result", {}
                     ),
                     "revision_count": final_state.values.get("revision_count", 0),
+                    "token_usage": final_token_usage,
                 },
                 ensure_ascii=False,
             ),
             event="complete",
+        )
+
+    except asyncio.CancelledError:
+        logger.info("[SSE] Session cancelled: %s", thread_id)
+        yield ServerSentEvent(
+            raw_data=json.dumps({"status": "cancelled", "session_id": thread_id}),
+            event="cancelled",
         )
 
     except Exception as e:
@@ -287,6 +313,9 @@ async def generate_ppt(request: GenerateRequest):
             raw_data=json.dumps({"error": str(e), "traceback": tb}),
             event="error",
         )
+
+    finally:
+        _cancel_events.pop(thread_id, None)
 
 
 @app.post("/api/edit", response_class=EventSourceResponse)
@@ -416,6 +445,17 @@ async def edit_slide(request: EditRequest):
             raw_data=json.dumps({"error": str(e), "traceback": tb}),
             event="error",
         )
+
+
+@app.post("/api/cancel/{session_id}")
+async def cancel_session(session_id: str):
+    """Cancel a running pipeline session (deep_research pattern)."""
+    cancel_event = _cancel_events.get(session_id)
+    if not cancel_event:
+        raise HTTPException(status_code=404, detail="Session not found or already finished")
+    cancel_event.set()
+    logger.info("[Cancel] Session cancel requested: %s", session_id)
+    return {"status": "cancelling", "session_id": session_id}
 
 
 @app.post("/api/human-review")

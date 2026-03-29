@@ -15,9 +15,11 @@ import logging
 import os
 import re
 
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 
-from core.config import get_llm
+from core.config import get_llm, LLM_TIMEOUT
 from core.state import PPTState
 
 logger = logging.getLogger(__name__)
@@ -402,7 +404,8 @@ async def _synthesize_slide(
     content: dict,
     style: dict,
     fix_prompt: str = "",
-) -> dict:
+    cancel_event: asyncio.Event | None = None,
+) -> tuple[dict, dict]:
     """Synthesize HTML code for one slide using 3-pass architecture.
 
     Pass 1 (Vision): Design image → HTML+CSS layout (structure only)
@@ -410,33 +413,53 @@ async def _synthesize_slide(
     Pass 3 (Code):   Verify 1280×720 fit and adjust CSS if needed
 
     Uses a semaphore to limit concurrent LLM calls and avoid throttling.
+    Returns (slide_result, token_usage).
     """
+    input_tokens = 0
+    output_tokens = 0
+
     async with _get_semaphore():
-        # Pass 1: Generate layout from design image
-        layout_code = await _generate_layout(
-            llm, slide_id, slide_type, image_b64, content, style,
-        )
+        if cancel_event and cancel_event.is_set():
+            raise asyncio.CancelledError()
 
-        # Pass 2: Insert text content into layout
-        text_code = await _insert_text(
-            llm, layout_code, slide_id, slide_type, content, fix_prompt,
-        )
+        with get_usage_metadata_callback() as cb:
+            # Pass 1: Generate layout from design image
+            layout_code = await _generate_layout(
+                llm, slide_id, slide_type, image_b64, content, style,
+            )
 
-        # Pass 3: Fit to 1280×720 container
-        final_code = await _fit_layout(
-            llm, text_code, slide_id, slide_type,
-        )
+            if cancel_event and cancel_event.is_set():
+                raise asyncio.CancelledError()
 
-    return {
-        "slide_id": slide_id,
-        "type": slide_type,
-        "code": final_code,
-    }
+            # Pass 2: Insert text content into layout
+            text_code = await _insert_text(
+                llm, layout_code, slide_id, slide_type, content, fix_prompt,
+            )
+
+            if cancel_event and cancel_event.is_set():
+                raise asyncio.CancelledError()
+
+            # Pass 3: Fit to 1280×720 container
+            final_code = await _fit_layout(
+                llm, text_code, slide_id, slide_type,
+            )
+
+            if cb.usage_metadata:
+                for _, usage in cb.usage_metadata.items():
+                    input_tokens += usage.get("input_tokens", 0)
+                    output_tokens += usage.get("output_tokens", 0)
+
+    logger.info("[Synth] %s tokens: in=%d out=%d", slide_id, input_tokens, output_tokens)
+
+    return (
+        {"slide_id": slide_id, "type": slide_type, "code": final_code},
+        {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    )
 
 
 # ── Main entry point ─────────────────────────────────────────────
 
-async def code_synthesizer(state: PPTState) -> dict:
+async def code_synthesizer(state: PPTState, config: RunnableConfig) -> dict:
     """Merge design images + text content → HTML code via 3-pass synthesis.
 
     Pass 1: Vision sees design image → generates HTML+CSS layout
@@ -446,6 +469,10 @@ async def code_synthesizer(state: PPTState) -> dict:
     Runs after all text_generator and design_generator Send instances complete.
     Uses asyncio.gather for parallel synthesis across slides.
     """
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     llm = get_llm()
     brief = state.get("research_brief", {})
     style = brief.get("style", {})
@@ -481,8 +508,17 @@ async def code_synthesizer(state: PPTState) -> dict:
                 content=content_data.get("content", {}),
                 style=style,
                 fix_prompt=fix_prompt,
+                cancel_event=cancel_event,
             )
         )
 
     results = await asyncio.gather(*tasks)
-    return {"generated_slides": list(results)}
+
+    slides = [r[0] for r in results]
+    total_in = sum(r[1].get("input_tokens", 0) for r in results)
+    total_out = sum(r[1].get("output_tokens", 0) for r in results)
+
+    return {
+        "generated_slides": slides,
+        "token_usage": {"input_tokens": total_in, "output_tokens": total_out},
+    }

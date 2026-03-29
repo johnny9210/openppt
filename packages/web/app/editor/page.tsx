@@ -8,15 +8,16 @@ import SlidePreview from "@/components/preview/SlidePreview";
 import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
 import DesignViewer from "@/components/design/DesignViewer";
+import WebSearchViewer from "@/components/search/WebSearchViewer";
 import { useStore } from "@/lib/store";
 import { generatePptx } from "@/lib/pptx";
 
 export default function EditorPage() {
-  const [activeTab, setActiveTab] = useState<"preview" | "code" | "design">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "code" | "design" | "search">("preview");
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const previewRef = useRef<SlidePreviewHandle>(null);
-  const { reactCode, slideCodes, slideDesigns, slideSpec, pptxLayouts, isGenerating, progressSteps, validationResult, sessionId } = useStore();
+  const { reactCode, slideCodes, slideDesigns, webResearch, slideSpec, pptxLayouts, isGenerating, progressSteps, validationResult, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
   const canExport = !!slideSpec && !!reactCode && !isGenerating;
@@ -135,6 +136,21 @@ export default function EditorPage() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab("search")}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === "search"
+                  ? "text-blue-500 border-b-2 border-blue-400"
+                  : "text-gray-400 hover:text-gray-500"
+              }`}
+            >
+              Web Search
+              {Object.keys(webResearch).length > 0 && (
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
+                  {Object.values(webResearch).reduce((sum, s) => sum + s.results.length, 0)}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Content */}
@@ -143,6 +159,8 @@ export default function EditorPage() {
               <SlidePreview ref={previewRef} code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
             ) : activeTab === "code" ? (
               <CodeViewer code={reactCode} slideCodes={slideCodes} />
+            ) : activeTab === "search" ? (
+              <WebSearchViewer webResearch={webResearch} />
             ) : (
               <DesignViewer slideDesigns={slideDesigns} />
             )}

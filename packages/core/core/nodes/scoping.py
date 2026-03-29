@@ -1,11 +1,15 @@
 """
-Phase 1: Scoping (dee_research pattern)
+Phase 1: Scoping (deep_research pattern)
 Analyzes user request and generates structured research brief with slide plan.
 """
 
+import asyncio
 import logging
 
-from core.config import get_llm
+from langchain_core.callbacks import get_usage_metadata_callback
+from langchain_core.runnables import RunnableConfig
+
+from core.config import get_llm, LLM_TIMEOUT
 from core.state import PPTState
 from core.utils import robust_parse_json, LLMJSONParseError
 
@@ -125,14 +129,29 @@ Generate this key points visual structure (NO TEXT) now.
 - 마지막 슬라이드 → closing"""
 
 
-async def scoping(state: PPTState) -> dict:
+async def scoping(state: PPTState, config: RunnableConfig) -> dict:
     """Analyze user request and generate structured research brief."""
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     llm = get_llm()
 
-    response = await llm.ainvoke([
-        {"role": "system", "content": SCOPING_PROMPT},
-        {"role": "user", "content": state["user_request"]},
-    ])
+    input_tokens = 0
+    output_tokens = 0
+
+    with get_usage_metadata_callback() as cb:
+        response = await asyncio.wait_for(
+            llm.ainvoke([
+                {"role": "system", "content": SCOPING_PROMPT},
+                {"role": "user", "content": state["user_request"]},
+            ]),
+            timeout=LLM_TIMEOUT,
+        )
+        if cb.usage_metadata:
+            for _, usage in cb.usage_metadata.items():
+                input_tokens += usage.get("input_tokens", 0)
+                output_tokens += usage.get("output_tokens", 0)
 
     try:
         brief = robust_parse_json(response.content)
@@ -142,4 +161,9 @@ async def scoping(state: PPTState) -> dict:
             f"Scoping could not parse research brief: {exc}"
         ) from exc
 
-    return {"research_brief": brief}
+    logger.info("[Scoping] tokens: in=%d out=%d", input_tokens, output_tokens)
+
+    return {
+        "research_brief": brief,
+        "token_usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    }

@@ -1,10 +1,22 @@
 """
 PPTState - LangGraph State Definition
-Architecture: Scoping -> Parallel (Text + Design) -> Synthesis -> Validation
+Architecture: Scoping -> Web Research -> Parallel (Text + Design) -> Synthesis -> Validation
 """
 
 from typing import TypedDict, Annotated
 import operator
+
+
+def _merge_token_usage(left: dict, right: dict) -> dict:
+    """Reducer: accumulate token usage across nodes (including parallel Send nodes)."""
+    if not left:
+        return right or {}
+    if not right:
+        return left
+    return {
+        "input_tokens": left.get("input_tokens", 0) + right.get("input_tokens", 0),
+        "output_tokens": left.get("output_tokens", 0) + right.get("output_tokens", 0),
+    }
 
 
 class PPTState(TypedDict):
@@ -13,7 +25,7 @@ class PPTState(TypedDict):
     # Phase 0: Input
     user_request: str
 
-    # Phase 1: Scoping (dee_research pattern)
+    # Phase 1: Scoping (deep_research pattern)
     research_brief: dict
 
     # Phase 2: Parallel Generation
@@ -33,6 +45,9 @@ class PPTState(TypedDict):
     validation_result: dict
     revision_count: int
     error_log: Annotated[list[dict], operator.add]
+
+    # Cross-cutting: Token tracking (accumulated across all nodes)
+    token_usage: Annotated[dict, _merge_token_usage]
 
 
 class TextGeneratorState(TypedDict):

@@ -22,6 +22,7 @@ export default function ChatInput() {
     setReactCode,
     setSlideCode,
     setSlideDesign,
+    setWebResearch,
     setSlideSpec,
     setPptxLayout,
     setValidationResult,
@@ -94,8 +95,31 @@ export default function ChatInput() {
               done: data.done as boolean,
             });
             break;
-          case "scoping":
+          case "scoping": {
+            // Extract web_research from research_brief.slide_plan
+            const slidePlan = (data.slide_plan as Array<Record<string, unknown>>) || [];
+            const researchMap: Record<string, { slide_id: string; type: string; topic: string; results: Array<{ url: string; title: string; content: string }> }> = {};
+            for (const slide of slidePlan) {
+              const wr = slide.web_research as Array<Record<string, string>> | undefined;
+              if (wr && wr.length > 0) {
+                const sid = slide.slide_id as string;
+                researchMap[sid] = {
+                  slide_id: sid,
+                  type: slide.type as string,
+                  topic: slide.topic as string,
+                  results: wr.map((r) => ({
+                    url: r.url || "",
+                    title: r.title || "",
+                    content: r.content || "",
+                  })),
+                };
+              }
+            }
+            if (Object.keys(researchMap).length > 0) {
+              setWebResearch(researchMap);
+            }
             break;
+          }
           case "design":
             setSlideDesign({
               slide_id: data.slide_id as string,
@@ -133,10 +157,30 @@ export default function ChatInput() {
           case "validation":
             setValidationResult(data as { layer: string; status: string });
             break;
-          case "complete":
+          case "complete": {
             if (!receivedCode && data.react_code) setReactCode(data.react_code as string);
             if (!receivedSpec && data.slide_spec) setSlideSpec(data.slide_spec as Record<string, unknown>);
+            // Extract web_research from complete's research_brief if not already set
+            const brief = data.research_brief as Record<string, unknown> | undefined;
+            if (brief) {
+              const plan = (brief.slide_plan as Array<Record<string, unknown>>) || [];
+              const rMap: Record<string, { slide_id: string; type: string; topic: string; results: Array<{ url: string; title: string; content: string }> }> = {};
+              for (const s of plan) {
+                const wr = s.web_research as Array<Record<string, string>> | undefined;
+                if (wr && wr.length > 0) {
+                  const sid = s.slide_id as string;
+                  rMap[sid] = {
+                    slide_id: sid,
+                    type: s.type as string,
+                    topic: s.topic as string,
+                    results: wr.map((r) => ({ url: r.url || "", title: r.title || "", content: r.content || "" })),
+                  };
+                }
+              }
+              if (Object.keys(rMap).length > 0) setWebResearch(rMap);
+            }
             break;
+          }
           case "error":
             setReactCode("");
             setIsGenerating(false);

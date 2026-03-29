@@ -3,10 +3,14 @@ Phase 2-A: Text Generator
 Generates detailed text content for each slide in parallel via Send API.
 """
 
+import asyncio
 import json
 import logging
 
-from core.config import get_llm
+from langchain_core.callbacks import get_usage_metadata_callback
+from langchain_core.runnables import RunnableConfig
+
+from core.config import get_llm, LLM_TIMEOUT
 from core.state import TextGeneratorState
 from core.utils import robust_parse_json, LLMJSONParseError
 
@@ -189,8 +193,12 @@ type: {slide_type}
 콘텐츠는 구체적이고 전문적으로 작성하세요."""
 
 
-async def text_generator(state: TextGeneratorState) -> dict:
+async def text_generator(state: TextGeneratorState, config: RunnableConfig) -> dict:
     """Generate detailed text content for a single slide."""
+    cancel_event = (config.get("configurable") or {}).get("cancel_event")
+    if cancel_event and cancel_event.is_set():
+        raise asyncio.CancelledError()
+
     llm = get_llm()
     slide = state["slide_plan"]
     brief = state["research_brief"]
@@ -206,9 +214,29 @@ async def text_generator(state: TextGeneratorState) -> dict:
         data=json.dumps(slide.get("data"), ensure_ascii=False) if slide.get("data") else "없음",
     )
 
-    response = await llm.ainvoke([
-        {"role": "user", "content": prompt},
-    ])
+    # Append web research context if available (from web_researcher node)
+    web_research = slide.get("web_research")
+    if web_research:
+        research_lines = ["\n\n## 웹 리서치 참고 자료 (실제 데이터를 활용하세요)"]
+        for i, r in enumerate(web_research, 1):
+            research_lines.append(f"\n[{i}] {r.get('title', '')}")
+            research_lines.append(f"    {r.get('content', '')}")
+            if r.get("url"):
+                research_lines.append(f"    출처: {r['url']}")
+        prompt += "\n".join(research_lines)
+
+    input_tokens = 0
+    output_tokens = 0
+
+    with get_usage_metadata_callback() as cb:
+        response = await asyncio.wait_for(
+            llm.ainvoke([{"role": "user", "content": prompt}]),
+            timeout=LLM_TIMEOUT,
+        )
+        if cb.usage_metadata:
+            for _, usage in cb.usage_metadata.items():
+                input_tokens += usage.get("input_tokens", 0)
+                output_tokens += usage.get("output_tokens", 0)
 
     try:
         content = robust_parse_json(response.content)
@@ -216,10 +244,13 @@ async def text_generator(state: TextGeneratorState) -> dict:
         logger.error("text_generator [%s]: %s", slide["slide_id"], exc)
         content = {"title": slide["topic"], "error": str(exc)}
 
+    logger.info("[TextGen] %s tokens: in=%d out=%d", slide["slide_id"], input_tokens, output_tokens)
+
     return {
         "slide_contents": [{
             "slide_id": slide["slide_id"],
             "type": slide["type"],
             "content": content,
-        }]
+        }],
+        "token_usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
     }
