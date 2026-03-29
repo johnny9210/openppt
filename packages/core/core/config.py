@@ -44,13 +44,9 @@ GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "1024"))
 
 # Timeouts (seconds) — deep_research pattern
 LLM_TIMEOUT = int(os.getenv("PPT_LLM_TIMEOUT", "600"))
-TOTAL_TIMEOUT = int(os.getenv("PPT_TOTAL_TIMEOUT", "1800"))
 
 # Tavily Web Search
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
-
-# Validator Service
-VALIDATOR_URL = os.getenv("VALIDATOR_URL", "http://validator:8001")
 
 # --- LLM Factory (singleton pattern from aidx) ---
 

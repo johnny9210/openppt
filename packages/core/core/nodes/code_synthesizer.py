@@ -467,12 +467,15 @@ async def code_synthesizer(state: PPTState, config: RunnableConfig) -> dict:
     Pass 3: Fits to 1280×720 container
 
     Runs after all text_generator and design_generator Send instances complete.
-    Uses asyncio.gather for parallel synthesis across slides.
+    Streams each slide via SSE as it completes (as_completed).
     """
+    from langgraph.config import get_stream_writer
+
     cancel_event = (config.get("configurable") or {}).get("cancel_event")
     if cancel_event and cancel_event.is_set():
         raise asyncio.CancelledError()
 
+    writer = get_stream_writer()
     llm = get_llm()
     brief = state.get("research_brief", {})
     style = brief.get("style", {})
@@ -493,30 +496,39 @@ async def code_synthesizer(state: PPTState, config: RunnableConfig) -> dict:
     if failed_ids and fix_prompt:
         all_slide_ids = [sid for sid in all_slide_ids if sid in set(failed_ids)]
 
-    tasks = []
+    async_tasks = []
     for sid in all_slide_ids:
         content_data = contents_map.get(sid, {})
         design_data = designs_map.get(sid, {})
         slide_type = content_data.get("type") or design_data.get("type", "unknown")
 
-        tasks.append(
-            _synthesize_slide(
-                llm=llm,
-                slide_id=sid,
-                slide_type=slide_type,
-                image_b64=design_data.get("image_b64"),
-                content=content_data.get("content", {}),
-                style=style,
-                fix_prompt=fix_prompt,
-                cancel_event=cancel_event,
+        async_tasks.append(
+            asyncio.create_task(
+                _synthesize_slide(
+                    llm=llm,
+                    slide_id=sid,
+                    slide_type=slide_type,
+                    image_b64=design_data.get("image_b64"),
+                    content=content_data.get("content", {}),
+                    style=style,
+                    fix_prompt=fix_prompt,
+                    cancel_event=cancel_event,
+                )
             )
         )
 
-    results = await asyncio.gather(*tasks)
+    slides = []
+    total_in = 0
+    total_out = 0
 
-    slides = [r[0] for r in results]
-    total_in = sum(r[1].get("input_tokens", 0) for r in results)
-    total_out = sum(r[1].get("output_tokens", 0) for r in results)
+    for future in asyncio.as_completed(async_tasks):
+        slide_result, tokens = await future
+        slides.append(slide_result)
+        total_in += tokens.get("input_tokens", 0)
+        total_out += tokens.get("output_tokens", 0)
+
+        # Stream individual slide to frontend as soon as it's ready
+        writer({"type": "slide_complete", "slide": slide_result})
 
     return {
         "generated_slides": slides,

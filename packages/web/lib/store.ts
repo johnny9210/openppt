@@ -44,6 +44,13 @@ interface SlideWebResearch {
   results: WebSearchResult[];
 }
 
+export interface BriefStyle {
+  primary_color: string;
+  accent_color: string;
+  background: string;
+  text_color: string;
+}
+
 interface AppState {
   // Session
   sessionId: string | null;
@@ -55,6 +62,7 @@ interface AppState {
   slideDesigns: Record<string, SlideDesign>;
   webResearch: Record<string, SlideWebResearch>;
   slideSpec: SlideSpec | null;
+  briefStyle: BriefStyle | null;
   tokenUsage: { input_tokens: number; output_tokens: number };
   validationResult: { layer?: string; status?: string } | null;
   progressSteps: ProgressStep[];
@@ -68,12 +76,12 @@ interface AppState {
   setSlideDesign: (design: SlideDesign) => void;
   setWebResearch: (research: Record<string, SlideWebResearch>) => void;
   setSlideSpec: (spec: SlideSpec) => void;
+  setBriefStyle: (style: BriefStyle) => void;
   setTokenUsage: (usage: { input_tokens: number; output_tokens: number }) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
   addChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
   resetProgress: () => void;
-  reset: () => void;
 }
 
 export const useStore = create<AppState>()((set) => ({
@@ -84,6 +92,7 @@ export const useStore = create<AppState>()((set) => ({
   slideDesigns: {},
   webResearch: {},
   slideSpec: null,
+  briefStyle: null,
   tokenUsage: { input_tokens: 0, output_tokens: 0 },
   validationResult: null,
   progressSteps: [],
@@ -102,6 +111,7 @@ export const useStore = create<AppState>()((set) => ({
     })),
   setWebResearch: (research) => set({ webResearch: research }),
   setSlideSpec: (spec) => set({ slideSpec: spec }),
+  setBriefStyle: (style) => set({ briefStyle: style }),
   setTokenUsage: (usage) => set({ tokenUsage: usage }),
   setValidationResult: (result) => set({ validationResult: result }),
   addProgressStep: (step) =>
@@ -113,19 +123,5 @@ export const useStore = create<AppState>()((set) => ({
         { ...msg, id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, timestamp: Date.now() },
       ],
     })),
-  resetProgress: () => set({ progressSteps: [], isGenerating: false }),
-  reset: () =>
-    set({
-      sessionId: null,
-      isGenerating: false,
-      reactCode: "",
-      slideCodes: {},
-      slideDesigns: {},
-      webResearch: {},
-      slideSpec: null,
-      tokenUsage: { input_tokens: 0, output_tokens: 0 },
-      validationResult: null,
-      progressSteps: [],
-      chatMessages: [],
-    }),
+  resetProgress: () => set({ progressSteps: [], isGenerating: false, briefStyle: null }),
 }));

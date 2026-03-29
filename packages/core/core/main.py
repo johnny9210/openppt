@@ -44,7 +44,6 @@ app.add_middleware(
 
 class GenerateRequest(BaseModel):
     user_request: str
-    model_type: str | None = None  # "claude" | "gpt"
 
 
 class EditRequest(BaseModel):
@@ -152,7 +151,6 @@ async def generate_ppt(request: GenerateRequest):
         "slide_spec": {},
         "validation_result": {},
         "revision_count": 0,
-        "error_log": [],
         "token_usage": {},
     }
 
@@ -169,10 +167,16 @@ async def generate_ppt(request: GenerateRequest):
             stream_mode=["updates", "custom"],
         ):
             if mode == "custom":
-                yield ServerSentEvent(
-                    raw_data=json.dumps(chunk, ensure_ascii=False),
-                    event="progress",
-                )
+                if isinstance(chunk, dict) and chunk.get("type") == "slide_complete":
+                    yield ServerSentEvent(
+                        raw_data=json.dumps(chunk["slide"], ensure_ascii=False),
+                        event="slide",
+                    )
+                else:
+                    yield ServerSentEvent(
+                        raw_data=json.dumps(chunk, ensure_ascii=False),
+                        event="progress",
+                    )
             elif mode == "updates":
                 for node_name, update in chunk.items():
                     if not update or not isinstance(update, dict):
@@ -372,10 +376,16 @@ async def edit_slide(request: EditRequest):
             stream_mode=["updates", "custom"],
         ):
             if mode == "custom":
-                yield ServerSentEvent(
-                    raw_data=json.dumps(chunk, ensure_ascii=False),
-                    event="progress",
-                )
+                if isinstance(chunk, dict) and chunk.get("type") == "slide_complete":
+                    yield ServerSentEvent(
+                        raw_data=json.dumps(chunk["slide"], ensure_ascii=False),
+                        event="slide",
+                    )
+                else:
+                    yield ServerSentEvent(
+                        raw_data=json.dumps(chunk, ensure_ascii=False),
+                        event="progress",
+                    )
             elif mode == "updates":
                 for node_name, update in chunk.items():
                     if not update or not isinstance(update, dict):

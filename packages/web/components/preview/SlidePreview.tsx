@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
+import { useEffect, useRef, useState, useMemo, useImperativeHandle, forwardRef } from "react";
+import { useStore, type BriefStyle } from "@/lib/store";
 
 interface SlideCode {
   slide_id: string;
@@ -23,14 +24,9 @@ export interface SlidePreviewHandle {
 /**
  * SlidePreview - Renders generated HTML presentation in a sandboxed iframe.
  *
- * The assembled HTML already includes:
- * - Google Fonts, Tailwind CDN, FontAwesome CDN
- * - Custom Tailwind theme config
- * - All slide styles and content
- * - Navigation JavaScript (keyboard, postMessage)
- * - html2canvas for slide capture
- *
- * No Babel transpilation or React CDN loading needed.
+ * Supports progressive preview: as individual slides complete during generation,
+ * they are assembled into a partial HTML document and rendered immediately.
+ * When the final assembled code arrives, it replaces the progressive preview.
  */
 
 const TYPE_LABELS: Record<string, string> = {
@@ -41,6 +37,141 @@ const TYPE_LABELS: Record<string, string> = {
   risk_analysis: "리스크 분석",
   action_plan: "실행 계획",
 };
+
+/**
+ * Build a progressive HTML document from individual slide codes.
+ * Replicates the backend code_assembly template structure.
+ */
+function buildProgressiveHTML(
+  slideCodes: Record<string, SlideCode>,
+  theme?: BriefStyle | null,
+): string {
+  const primary = theme?.primary_color || "#6366F1";
+  const accent = theme?.accent_color || "#818CF8";
+  const slideBg = theme?.background || "#F5F7FA";
+  const heading = theme?.text_color || "#1A202C";
+
+  const sortedIds = Object.keys(slideCodes).sort();
+
+  let allStyles = "";
+  let allContent = "";
+
+  sortedIds.forEach((id, i) => {
+    const slide = slideCodes[id];
+    const code = slide.code;
+
+    // Extract <style> blocks
+    const styleMatches = [...code.matchAll(/<style>([\s\S]*?)<\/style>/g)];
+    const styles = styleMatches.map((m) => m[0]).join("\n");
+    let html = code.replace(/<style>[\s\S]*?<\/style>\s*/g, "").trim();
+
+    allStyles += `  <!-- ${id} (${slide.type}) -->\n  ${styles}\n`;
+
+    // First slide gets 'active' class
+    if (i === 0 && !html.includes("active")) {
+      html = html.replace(
+        'class="slide-container',
+        'class="slide-container active',
+      );
+    }
+    allContent += `    <!-- ${id} (${slide.type}) -->\n    ${html}\n`;
+  });
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '${primary}',
+            accent: '${accent}',
+            heading: '${heading}',
+            body: '#64748B',
+            card: '#FFFFFF',
+            'card-border': '#E2E8F0',
+            'slide-bg': '${slideBg}',
+            danger: '#E53E3E',
+            warning: '#F59E0B',
+            success: '#38A169',
+          },
+          boxShadow: {
+            card: '0 2px 8px rgba(0,0,0,0.06)',
+            'card-hover': '0 8px 24px rgba(0,0,0,0.12)',
+          }
+        }
+      }
+    };
+  <\/script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background-color: #E8ECF1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .slide-container {
+      width: 1280px;
+      height: 720px;
+      flex-direction: column;
+      background-color: #ffffff;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    #presentation > .slide-container {
+      display: none;
+    }
+    #presentation > .slide-container.active {
+      display: flex;
+    }
+  </style>
+${allStyles}
+</head>
+<body>
+  <div id="presentation">
+${allContent}
+  </div>
+
+  <script>
+    var current = 0;
+    var slides = document.querySelectorAll('.slide-container');
+    var total = slides.length;
+
+    function goTo(i) {
+      if (total === 0) return;
+      slides[current].classList.remove('active');
+      current = Math.max(0, Math.min(total - 1, i));
+      slides[current].classList.add('active');
+      try { window.parent.postMessage({ type: 'slideChange', index: current }, '*'); } catch(e) {}
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowLeft') goTo(current - 1);
+      if (e.key === 'ArrowRight') goTo(current + 1);
+    });
+
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'goToSlide') goTo(e.data.index);
+    });
+
+    if (slides.length > 0) slides[0].classList.add('active');
+  <\/script>
+</body>
+</html>`;
+}
 
 /**
  * Capture all slides as PNG images from the iframe.
@@ -114,21 +245,30 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
   const [activeSlide, setActiveSlide] = useState<number>(0);
   const [previewSize, setPreviewSize] = useState<{ w: number; h: number }>({ w: 960, h: 540 });
 
+  const briefStyle = useStore((s) => s.briefStyle);
   const slideIds = slideCodes ? Object.keys(slideCodes).sort() : [];
+
+  // Build progressive HTML when slides are arriving but final code is not yet ready
+  const progressiveHTML = useMemo(() => {
+    if (code || !slideCodes || Object.keys(slideCodes).length === 0) return null;
+    return buildProgressiveHTML(slideCodes, briefStyle);
+  }, [code, slideCodes, briefStyle]);
+
+  // The HTML to render: final code takes priority, otherwise progressive
+  const htmlToRender = code || progressiveHTML;
 
   useImperativeHandle(ref, () => ({
     getIframe: () => iframeRef.current,
     getSlideCount: () => slideIds.length,
   }));
 
-  // Load assembled HTML directly into iframe
+  // Load HTML into iframe
   useEffect(() => {
-    if (!code || !iframeRef.current) return;
+    if (!htmlToRender || !iframeRef.current) return;
 
     setIsLoading(true);
 
-    // The code is already a complete HTML document — load directly
-    const blob = new Blob([code], { type: "text/html" });
+    const blob = new Blob([htmlToRender], { type: "text/html" });
     const url = URL.createObjectURL(blob);
 
     const iframe = iframeRef.current;
@@ -144,7 +284,7 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
       iframe.removeEventListener("load", handleLoad);
       URL.revokeObjectURL(url);
     };
-  }, [code]);
+  }, [htmlToRender]);
 
   // Listen for slide change messages from iframe
   useEffect(() => {
@@ -183,7 +323,7 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
     );
   };
 
-  if (!code) {
+  if (!htmlToRender) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         <p>코드를 생성하면 여기에 프리뷰가 표시됩니다.</p>
@@ -197,7 +337,7 @@ const SlidePreview = forwardRef<SlidePreviewHandle, SlidePreviewProps>(function 
       {slideIds.length > 0 && (
         <div className="w-[200px] border-r border-blue-200 flex flex-col bg-white/80">
           <div className="px-3 py-2 text-xs text-gray-400 font-medium uppercase tracking-wider border-b border-blue-200">
-            슬라이드
+            슬라이드{!code && <span className="ml-1 text-blue-400">({slideIds.length}장 완성)</span>}
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             {slideIds.map((id, i) => {

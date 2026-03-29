@@ -41,7 +41,6 @@ class PPTState(TypedDict):
     slide_spec: dict  # backward-compatible spec for validators
     validation_result: dict
     revision_count: int
-    error_log: Annotated[list[dict], operator.add]
 
     # Cross-cutting: Token tracking (accumulated across all nodes)
     token_usage: Annotated[dict, _merge_token_usage]

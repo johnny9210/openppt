@@ -24,6 +24,7 @@ export default function ChatInput() {
     setSlideDesign,
     setWebResearch,
     setSlideSpec,
+    setBriefStyle,
     setTokenUsage,
     setValidationResult,
     addProgressStep,
@@ -96,6 +97,16 @@ export default function ChatInput() {
             });
             break;
           case "scoping": {
+            // Save theme style for progressive preview
+            const style = data.style as Record<string, string> | undefined;
+            if (style) {
+              setBriefStyle({
+                primary_color: style.primary_color || "#6366F1",
+                accent_color: style.accent_color || "#818CF8",
+                background: style.background || "#F5F7FA",
+                text_color: style.text_color || "#1A202C",
+              });
+            }
             // Extract web_research from research_brief.slide_plan
             const slidePlan = (data.slide_plan as Array<Record<string, unknown>>) || [];
             const researchMap: Record<string, { slide_id: string; type: string; topic: string; results: Array<{ url: string; title: string; content: string }> }> = {};
