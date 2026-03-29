@@ -44,13 +44,6 @@ interface SlideWebResearch {
   results: WebSearchResult[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface PptxLayout {
-  slide_id: string;
-  type: string;
-  layout: Record<string, any> | null;
-}
-
 interface AppState {
   // Session
   sessionId: string | null;
@@ -62,7 +55,6 @@ interface AppState {
   slideDesigns: Record<string, SlideDesign>;
   webResearch: Record<string, SlideWebResearch>;
   slideSpec: SlideSpec | null;
-  pptxLayouts: Record<string, PptxLayout>;
   tokenUsage: { input_tokens: number; output_tokens: number };
   validationResult: { layer?: string; status?: string } | null;
   progressSteps: ProgressStep[];
@@ -76,7 +68,6 @@ interface AppState {
   setSlideDesign: (design: SlideDesign) => void;
   setWebResearch: (research: Record<string, SlideWebResearch>) => void;
   setSlideSpec: (spec: SlideSpec) => void;
-  setPptxLayout: (layout: PptxLayout) => void;
   setTokenUsage: (usage: { input_tokens: number; output_tokens: number }) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
@@ -93,7 +84,6 @@ export const useStore = create<AppState>()((set) => ({
   slideDesigns: {},
   webResearch: {},
   slideSpec: null,
-  pptxLayouts: {},
   tokenUsage: { input_tokens: 0, output_tokens: 0 },
   validationResult: null,
   progressSteps: [],
@@ -112,10 +102,6 @@ export const useStore = create<AppState>()((set) => ({
     })),
   setWebResearch: (research) => set({ webResearch: research }),
   setSlideSpec: (spec) => set({ slideSpec: spec }),
-  setPptxLayout: (layout) =>
-    set((state) => ({
-      pptxLayouts: { ...state.pptxLayouts, [layout.slide_id]: layout },
-    })),
   setTokenUsage: (usage) => set({ tokenUsage: usage }),
   setValidationResult: (result) => set({ validationResult: result }),
   addProgressStep: (step) =>
@@ -137,7 +123,6 @@ export const useStore = create<AppState>()((set) => ({
       slideDesigns: {},
       webResearch: {},
       slideSpec: null,
-      pptxLayouts: {},
       tokenUsage: { input_tokens: 0, output_tokens: 0 },
       validationResult: null,
       progressSteps: [],

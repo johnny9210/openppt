@@ -96,7 +96,6 @@ def upload_session(session_id: str, state_values: dict) -> None:
             metadata.json
             slide_contents.json
             slide_spec.json
-            pptx_layouts.json
             designs/slide_001.png
             designs/slide_002.png ...
             slides/slide_001.html
@@ -131,12 +130,7 @@ def upload_session(session_id: str, state_values: dict) -> None:
     if slide_spec:
         _upload_json(f"{prefix}/slide_spec.json", slide_spec)
 
-    # 5. PPTX layouts
-    pptx_layouts = state_values.get("pptx_layouts", [])
-    if pptx_layouts:
-        _upload_json(f"{prefix}/pptx_layouts.json", pptx_layouts)
-
-    # 6. Design images (base64 PNG → binary PNG)
+    # 5. Design images (base64 PNG → binary PNG)
     slide_designs = state_values.get("slide_designs", [])
     for design in slide_designs:
         image_b64 = design.get("image_b64")

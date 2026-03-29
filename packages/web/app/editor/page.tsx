@@ -10,7 +10,6 @@ import CodeViewer from "@/components/code/CodeViewer";
 import DesignViewer from "@/components/design/DesignViewer";
 import WebSearchViewer from "@/components/search/WebSearchViewer";
 import { useStore } from "@/lib/store";
-import { generatePptx } from "@/lib/pptx";
 import { exportViaDomToPptx } from "@/lib/pptx/dom-export";
 
 export default function EditorPage() {
@@ -18,7 +17,7 @@ export default function EditorPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const previewRef = useRef<SlidePreviewHandle>(null);
-  const { reactCode, slideCodes, slideDesigns, webResearch, slideSpec, pptxLayouts, isGenerating, progressSteps, validationResult, tokenUsage, sessionId } = useStore();
+  const { reactCode, slideCodes, slideDesigns, webResearch, slideSpec, isGenerating, progressSteps, validationResult, tokenUsage, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
   const canExport = !!slideSpec && !!reactCode && !isGenerating;
@@ -57,23 +56,10 @@ export default function EditorPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.warn("dom-to-pptx failed, falling back:", err);
-      // Fallback: original PptxGenJS renderer
-      if (slideSpec) {
-        try {
-          setExportStatus("대체 방식으로 생성 중...");
-          await generatePptx(slideSpec, pptxLayouts);
-        } catch (fallbackErr) {
-          console.error("Fallback PPTX export also failed:", fallbackErr);
-          alert(
-            `다운로드 실패: ${fallbackErr instanceof Error ? fallbackErr.message : "Unknown error"}`,
-          );
-        }
-      } else {
-        alert(
-          `다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`,
-        );
-      }
+      console.error("PPTX export failed:", err);
+      alert(
+        `다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
     } finally {
       setIsExporting(false);
       setExportStatus("");

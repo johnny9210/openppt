@@ -37,9 +37,6 @@ class PPTState(TypedDict):
     generated_slides: Annotated[list[dict], operator.add]  # Vision -> code
     react_code: str
 
-    # Phase 3-B: PPTX Layout (React → PptxGenJS JSON, parallel with validation)
-    pptx_layouts: Annotated[list[dict], operator.add]
-
     # Phase 4: Validation
     slide_spec: dict  # backward-compatible spec for validators
     validation_result: dict

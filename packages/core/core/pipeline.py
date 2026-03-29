@@ -36,7 +36,6 @@ from core.nodes.code_assembly import code_assembly
 from core.nodes.ast_validator import ast_validator
 from core.nodes.runtime_validator import runtime_validator
 from core.nodes.semantic_validator import semantic_validator
-from core.nodes.pptx_layout_generator import pptx_layout_generator
 
 
 # --- Phase 2a: Cover + Text dispatch ---
@@ -281,14 +280,6 @@ def progress_code_assembly(state: PPTState) -> dict:
     return result
 
 
-async def progress_pptx_layout_generator(state: PPTState, config) -> dict:
-    writer = get_stream_writer()
-    writer({"phase": 3, "step": "pptx_layout", "message": "PPTX 레이아웃 변환 중..."})
-    result = await pptx_layout_generator(state, config)
-    success = sum(1 for l in result.get("pptx_layouts", []) if l.get("layout"))
-    total = len(result.get("pptx_layouts", []))
-    writer({"phase": 3, "step": "pptx_layout", "message": f"PPTX 레이아웃 변환 완료: {success}/{total}", "done": True})
-    return result
 
 
 async def progress_ast_validator(state: PPTState, config) -> dict:
@@ -364,8 +355,6 @@ def build_pipeline():
     graph.add_node("code_synthesizer", progress_code_synthesizer)
     graph.add_node("code_assembly", progress_code_assembly)
 
-    # Phase 3-B: PPTX Layout (parallel with validation)
-    graph.add_node("pptx_layout_generator", progress_pptx_layout_generator)
 
     # Phase 4: Validation
     graph.add_node("ast_validator", progress_ast_validator)
@@ -392,8 +381,6 @@ def build_pipeline():
     # Phase 3: Synthesis -> Assembly -> Validation + PPTX Layout (parallel)
     graph.add_edge("code_synthesizer", "code_assembly")
     graph.add_edge("code_assembly", "ast_validator")
-    graph.add_edge("code_assembly", "pptx_layout_generator")
-    graph.add_edge("pptx_layout_generator", END)
 
     # Phase 4: Validation chain
     graph.add_conditional_edges("ast_validator", route_ast_result)
