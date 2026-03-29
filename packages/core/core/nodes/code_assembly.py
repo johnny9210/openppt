@@ -128,12 +128,77 @@ $SLIDE_CONTENT$
     window.addEventListener('message', function(e) {
       if (e.data && e.data.type === 'goToSlide') goTo(e.data.index);
       if (e.data && e.data.type === 'captureSlide') captureSlide(e.data.index);
+      if (e.data && e.data.type === 'exportPptx') exportAsPptx(e.data.fileName || 'presentation.pptx');
     });
 
     window.__goToSlide = goTo;
 
     // Initialize first slide
     if (slides.length > 0) slides[0].classList.add('active');
+
+    // ── PPTX Export via dom-to-pptx ────────────────────────────
+    var __domToPptxLoaded = false;
+
+    function exportAsPptx(fileName) {
+      function sendStatus(msg) {
+        try { window.parent.postMessage({ type: 'pptxStatus', message: msg }, '*'); } catch(e) {}
+      }
+
+      if (__domToPptxLoaded) {
+        _doExport(fileName, sendStatus);
+      } else {
+        sendStatus('PPTX 엔진 로딩 중...');
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/dom-to-pptx@1.1.5/dist/dom-to-pptx.bundle.js';
+        s.onload = function() {
+          __domToPptxLoaded = true;
+          _doExport(fileName, sendStatus);
+        };
+        s.onerror = function() {
+          window.parent.postMessage({ type: 'pptxError', error: 'dom-to-pptx 로드 실패' }, '*');
+        };
+        document.head.appendChild(s);
+      }
+    }
+
+    function _doExport(fileName, sendStatus) {
+      sendStatus('슬라이드 변환 중...');
+      var prevActive = current;
+
+      // Make all slides visible for DOM measurement
+      slides.forEach(function(s) { s.classList.add('active'); });
+      // Force reflow so getBoundingClientRect returns correct values
+      void document.body.offsetHeight;
+
+      domToPptx.exportToPptx(Array.from(slides), {
+        fileName: fileName,
+        skipDownload: true
+      }).then(function(blob) {
+        // Restore slide state
+        slides.forEach(function(s) { s.classList.remove('active'); });
+        if (slides[prevActive]) slides[prevActive].classList.add('active');
+        current = prevActive;
+
+        sendStatus('파일 생성 중...');
+        return blob.arrayBuffer();
+      }).then(function(buffer) {
+        window.parent.postMessage({
+          type: 'pptxResult',
+          buffer: buffer,
+          fileName: fileName
+        }, '*', [buffer]);
+      }).catch(function(err) {
+        // Restore slide state on error
+        slides.forEach(function(s) { s.classList.remove('active'); });
+        if (slides[prevActive]) slides[prevActive].classList.add('active');
+        current = prevActive;
+
+        window.parent.postMessage({
+          type: 'pptxError',
+          error: err.message || 'PPTX 변환 실패'
+        }, '*');
+      });
+    }
 
     // ── Capture support ──────────────────────────────────────
     function captureSlide(index) {

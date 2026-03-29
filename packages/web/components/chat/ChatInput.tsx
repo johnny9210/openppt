@@ -25,6 +25,7 @@ export default function ChatInput() {
     setWebResearch,
     setSlideSpec,
     setPptxLayout,
+    setTokenUsage,
     setValidationResult,
     addProgressStep,
     addChatMessage,
@@ -157,9 +158,19 @@ export default function ChatInput() {
           case "validation":
             setValidationResult(data as { layer: string; status: string });
             break;
+          case "token_usage":
+            setTokenUsage({
+              input_tokens: (data.input_tokens as number) || 0,
+              output_tokens: (data.output_tokens as number) || 0,
+            });
+            break;
           case "complete": {
             if (!receivedCode && data.react_code) setReactCode(data.react_code as string);
             if (!receivedSpec && data.slide_spec) setSlideSpec(data.slide_spec as Record<string, unknown>);
+            if (data.token_usage) {
+              const tu = data.token_usage as { input_tokens: number; output_tokens: number };
+              setTokenUsage({ input_tokens: tu.input_tokens || 0, output_tokens: tu.output_tokens || 0 });
+            }
             // Extract web_research from complete's research_brief if not already set
             const brief = data.research_brief as Record<string, unknown> | undefined;
             if (brief) {

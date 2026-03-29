@@ -63,6 +63,7 @@ interface AppState {
   webResearch: Record<string, SlideWebResearch>;
   slideSpec: SlideSpec | null;
   pptxLayouts: Record<string, PptxLayout>;
+  tokenUsage: { input_tokens: number; output_tokens: number };
   validationResult: { layer?: string; status?: string } | null;
   progressSteps: ProgressStep[];
   chatMessages: ChatMessage[];
@@ -76,6 +77,7 @@ interface AppState {
   setWebResearch: (research: Record<string, SlideWebResearch>) => void;
   setSlideSpec: (spec: SlideSpec) => void;
   setPptxLayout: (layout: PptxLayout) => void;
+  setTokenUsage: (usage: { input_tokens: number; output_tokens: number }) => void;
   setValidationResult: (result: { layer?: string; status?: string } | null) => void;
   addProgressStep: (step: ProgressStep) => void;
   addChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
@@ -92,6 +94,7 @@ export const useStore = create<AppState>()((set) => ({
   webResearch: {},
   slideSpec: null,
   pptxLayouts: {},
+  tokenUsage: { input_tokens: 0, output_tokens: 0 },
   validationResult: null,
   progressSteps: [],
   chatMessages: [],
@@ -113,6 +116,7 @@ export const useStore = create<AppState>()((set) => ({
     set((state) => ({
       pptxLayouts: { ...state.pptxLayouts, [layout.slide_id]: layout },
     })),
+  setTokenUsage: (usage) => set({ tokenUsage: usage }),
   setValidationResult: (result) => set({ validationResult: result }),
   addProgressStep: (step) =>
     set((state) => ({ progressSteps: [...state.progressSteps, step] })),
@@ -134,6 +138,7 @@ export const useStore = create<AppState>()((set) => ({
       webResearch: {},
       slideSpec: null,
       pptxLayouts: {},
+      tokenUsage: { input_tokens: 0, output_tokens: 0 },
       validationResult: null,
       progressSteps: [],
       chatMessages: [],

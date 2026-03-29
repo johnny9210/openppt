@@ -11,26 +11,69 @@ import DesignViewer from "@/components/design/DesignViewer";
 import WebSearchViewer from "@/components/search/WebSearchViewer";
 import { useStore } from "@/lib/store";
 import { generatePptx } from "@/lib/pptx";
+import { exportViaDomToPptx } from "@/lib/pptx/dom-export";
 
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<"preview" | "code" | "design" | "search">("preview");
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const previewRef = useRef<SlidePreviewHandle>(null);
-  const { reactCode, slideCodes, slideDesigns, webResearch, slideSpec, pptxLayouts, isGenerating, progressSteps, validationResult, sessionId } = useStore();
+  const { reactCode, slideCodes, slideDesigns, webResearch, slideSpec, pptxLayouts, isGenerating, progressSteps, validationResult, tokenUsage, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
   const canExport = !!slideSpec && !!reactCode && !isGenerating;
 
   const handleDownloadPptx = async () => {
-    if (!slideSpec || isExporting) return;
+    if (!reactCode || isExporting) return;
     setIsExporting(true);
+
+    const rawTitle =
+      slideSpec?.ppt_state?.presentation?.meta?.title || "presentation";
+    const fileName =
+      rawTitle
+        .replace(/[^\w가-힣\s-]/g, "")
+        .trim()
+        .slice(0, 50) || "presentation";
+
     try {
+      // Primary: dom-to-pptx (reads actual DOM from iframe)
       setExportStatus("PPTX 생성 중...");
-      await generatePptx(slideSpec, pptxLayouts);
+      const iframeEl = previewRef.current?.getIframe();
+      if (!iframeEl) throw new Error("Preview iframe not found");
+
+      const blob = await exportViaDomToPptx(
+        iframeEl,
+        `${fileName}.pptx`,
+        (msg) => setExportStatus(msg),
+      );
+
+      // Trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileName}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("PPTX export failed:", err);
-      alert(`다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`);
+      console.warn("dom-to-pptx failed, falling back:", err);
+      // Fallback: original PptxGenJS renderer
+      if (slideSpec) {
+        try {
+          setExportStatus("대체 방식으로 생성 중...");
+          await generatePptx(slideSpec, pptxLayouts);
+        } catch (fallbackErr) {
+          console.error("Fallback PPTX export also failed:", fallbackErr);
+          alert(
+            `다운로드 실패: ${fallbackErr instanceof Error ? fallbackErr.message : "Unknown error"}`,
+          );
+        }
+      } else {
+        alert(
+          `다운로드 실패: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      }
     } finally {
       setIsExporting(false);
       setExportStatus("");
@@ -57,6 +100,11 @@ export default function EditorPage() {
               }`}
             >
               {validationResult.layer}: {validationResult.status}
+            </span>
+          )}
+          {(tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
+            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500 tabular-nums">
+              {tokenUsage.input_tokens.toLocaleString()} in / {tokenUsage.output_tokens.toLocaleString()} out
             </span>
           )}
           {canExport && (
@@ -153,17 +201,14 @@ export default function EditorPage() {
             </button>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-hidden">
-            {activeTab === "preview" ? (
+          {/* Content — SlidePreview always mounted so iframe survives tab switches */}
+          <div className="flex-1 overflow-hidden relative">
+            <div className={activeTab === "preview" ? "h-full" : "h-full invisible absolute inset-0"}>
               <SlidePreview ref={previewRef} code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
-            ) : activeTab === "code" ? (
-              <CodeViewer code={reactCode} slideCodes={slideCodes} />
-            ) : activeTab === "search" ? (
-              <WebSearchViewer webResearch={webResearch} />
-            ) : (
-              <DesignViewer slideDesigns={slideDesigns} />
-            )}
+            </div>
+            {activeTab === "code" && <CodeViewer code={reactCode} slideCodes={slideCodes} />}
+            {activeTab === "search" && <WebSearchViewer webResearch={webResearch} />}
+            {activeTab === "design" && <DesignViewer slideDesigns={slideDesigns} />}
           </div>
         </div>
       </div>
