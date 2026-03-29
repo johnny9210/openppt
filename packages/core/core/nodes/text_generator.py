@@ -6,6 +6,7 @@ Generates detailed text content for each slide in parallel via Send API.
 import asyncio
 import json
 import logging
+import os
 
 from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_core.runnables import RunnableConfig
@@ -15,6 +16,17 @@ from core.state import TextGeneratorState
 from core.utils import robust_parse_json, LLMJSONParseError
 
 logger = logging.getLogger(__name__)
+
+# Limit concurrent Bedrock calls from parallel text generators.
+MAX_CONCURRENT_TEXT_GEN = int(os.getenv("MAX_CONCURRENT_TEXT_GEN", "5"))
+_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(MAX_CONCURRENT_TEXT_GEN)
+    return _semaphore
 
 TEXT_GEN_PROMPT = """당신은 프레젠테이션 콘텐츠 작성 전문가입니다.
 주어진 슬라이드 기획 정보를 바탕으로 실제 슬라이드에 들어갈 상세 텍스트 콘텐츠를 작성합니다.
@@ -228,15 +240,16 @@ async def text_generator(state: TextGeneratorState, config: RunnableConfig) -> d
     input_tokens = 0
     output_tokens = 0
 
-    with get_usage_metadata_callback() as cb:
-        response = await asyncio.wait_for(
-            llm.ainvoke([{"role": "user", "content": prompt}]),
-            timeout=LLM_TIMEOUT,
-        )
-        if cb.usage_metadata:
-            for _, usage in cb.usage_metadata.items():
-                input_tokens += usage.get("input_tokens", 0)
-                output_tokens += usage.get("output_tokens", 0)
+    async with _get_semaphore():
+        with get_usage_metadata_callback() as cb:
+            response = await asyncio.wait_for(
+                llm.ainvoke([{"role": "user", "content": prompt}]),
+                timeout=LLM_TIMEOUT,
+            )
+            if cb.usage_metadata:
+                for _, usage in cb.usage_metadata.items():
+                    input_tokens += usage.get("input_tokens", 0)
+                    output_tokens += usage.get("output_tokens", 0)
 
     try:
         content = robust_parse_json(response.content)

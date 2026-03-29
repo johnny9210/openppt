@@ -92,7 +92,7 @@ def get_llm(model_type: str | None = None):
         from langchain_aws import ChatBedrock
 
         bedrock_config = Config(
-            max_pool_connections=10,
+            max_pool_connections=25,
             retries={"max_attempts": 3, "mode": "adaptive"},
         )
         bedrock_client = boto3.client(
