@@ -314,7 +314,7 @@ async def edit_slide(request: EditRequest):
     """Edit a specific slide by re-synthesizing it with user instructions.
 
     Uses LangGraph update_state to inject a fix_prompt targeting the slide,
-    then resumes from semantic_validator -> semantic_decision -> code_synthesizer.
+    then resumes from runtime_validator -> code_synthesizer.
     """
     pipeline = get_pipeline()
     config = {"configurable": {"thread_id": request.session_id}}
@@ -339,8 +339,8 @@ async def edit_slide(request: EditRequest):
     )
 
     try:
-        # Inject edit instruction as a semantic validation failure for the target slide.
-        # This makes the pipeline resume: semantic_decision -> code_synthesizer (re-synth target only)
+        # Inject edit instruction as a runtime validation failure for the target slide.
+        # This makes the pipeline resume: route_runtime_result sees fail -> code_synthesizer
         fix_prompt = (
             f"[사용자 수정 요청]\n"
             f"슬라이드 {request.target_slide_id}에 대한 수정:\n"
@@ -355,17 +355,17 @@ async def edit_slide(request: EditRequest):
             config,
             {
                 "validation_result": {
-                    "layer": "semantic",
+                    "layer": "runtime",
                     "status": "fail",
                     "fix_prompt": fix_prompt,
                     "failed_slide_ids": [request.target_slide_id],
                 },
                 "revision_count": 0,
             },
-            as_node="semantic_validator",
+            as_node="runtime_validator",
         )
 
-        # Resume pipeline — semantic_decision sees fail -> routes to code_synthesizer
+        # Resume pipeline — route_runtime_result sees fail -> code_synthesizer
         async for mode, chunk in pipeline.astream(
             None,
             config,

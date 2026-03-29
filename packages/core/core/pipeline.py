@@ -6,7 +6,7 @@ Uses LangGraph v1.0.10 API:
 - StateGraph with conditional edges
 - Send API for parallel text + design generation
 - Cover slide generated first for style reference
-- interrupt() for human-in-the-loop
+- Checkpointer for state persistence
 - get_stream_writer for SSE progress
 - Token tracking via get_usage_metadata_callback (deep_research pattern)
 - Cancel support via asyncio.Event (deep_research pattern)
@@ -14,10 +14,11 @@ Uses LangGraph v1.0.10 API:
 """
 
 import logging
-from typing import Literal
+
+
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.types import Send, Command, interrupt
+from langgraph.types import Send, Command
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.config import get_stream_writer
 
@@ -35,7 +36,6 @@ from core.nodes.code_synthesizer import code_synthesizer
 from core.nodes.code_assembly import code_assembly
 from core.nodes.ast_validator import ast_validator
 from core.nodes.runtime_validator import runtime_validator
-from core.nodes.semantic_validator import semantic_validator
 
 
 # --- Phase 2a: Cover + Text dispatch ---
@@ -99,7 +99,7 @@ def remaining_design_dispatcher(state: PPTState) -> Command:
 
 # --- Routing functions ---
 
-def route_ast_result(state: PPTState) -> Literal["runtime_validator", "code_assembly"]:
+def route_ast_result(state: PPTState) -> str:
     """AST fail -> re-run code_assembly."""
     result = state.get("validation_result", {})
     revision_count = state.get("revision_count", 0)
@@ -114,8 +114,8 @@ def route_ast_result(state: PPTState) -> Literal["runtime_validator", "code_asse
 
 def route_runtime_result(
     state: PPTState,
-) -> Literal["semantic_validator", "code_synthesizer"]:
-    """Runtime fail -> re-synthesize code."""
+) -> str:
+    """Runtime fail -> re-synthesize code. Pass -> END."""
     result = state.get("validation_result", {})
     revision_count = state.get("revision_count", 0)
     if (
@@ -124,46 +124,7 @@ def route_runtime_result(
         and revision_count < MAX_REVISIONS
     ):
         return "code_synthesizer"
-    return "semantic_validator"
-
-
-# --- Semantic decision node ---
-
-def semantic_decision(state: PPTState) -> Command:
-    """Post-semantic-validation decision.
-    - pass -> END
-    - fail + revision < MAX -> re-synthesize
-    - fail + revision >= MAX -> human-in-the-loop
-    """
-    result = state.get("validation_result", {})
-
-    if result.get("layer") == "semantic" and result.get("status") == "pass":
-        return Command(goto=END)
-
-    revision_count = state.get("revision_count", 0)
-
-    if revision_count >= MAX_REVISIONS:
-        decision = interrupt({
-            "message": f"{revision_count}회 검증 실패. 계속 재생성하시겠습니까?",
-            "validation_result": result,
-            "options": ["retry", "approve", "abort"],
-        })
-
-        if decision == "approve":
-            return Command(goto=END)
-        elif decision == "abort":
-            return Command(
-                goto=END,
-                update={
-                    "validation_result": {
-                        "layer": "semantic",
-                        "status": "aborted",
-                        "reason": "User aborted after max revisions",
-                    }
-                },
-            )
-
-    return Command(goto="code_synthesizer")
+    return END
 
 
 # --- Progress wrapper nodes ---
@@ -305,20 +266,6 @@ async def progress_runtime_validator(state: PPTState, config) -> dict:
     return result
 
 
-async def progress_semantic_validator(state: PPTState, config) -> dict:
-    writer = get_stream_writer()
-    writer({"phase": 4, "step": "semantic_validator", "message": "시맨틱 검증 중..."})
-    result = await semantic_validator(state, config)
-    status = result["validation_result"]["status"]
-    writer({
-        "phase": 4,
-        "step": "semantic_validator",
-        "message": f"시맨틱 검증: {status}",
-        "done": True,
-    })
-    return result
-
-
 # --- Build Pipeline ---
 
 def build_pipeline():
@@ -332,7 +279,7 @@ def build_pipeline():
               → remaining_design_dispatcher (reads cover image, Send: design_generator x N-1)
                 → [design_generator x N-1] (parallel, with cover as style reference)
                   → code_synthesizer
-                    → code_assembly → validation chain
+                    → code_assembly → ast_validator → runtime_validator → END
     """
     graph = StateGraph(PPTState)
 
@@ -359,8 +306,6 @@ def build_pipeline():
     # Phase 4: Validation
     graph.add_node("ast_validator", progress_ast_validator)
     graph.add_node("runtime_validator", progress_runtime_validator)
-    graph.add_node("semantic_validator", progress_semantic_validator)
-    graph.add_node("semantic_decision", semantic_decision)
 
     # --- Edges ---
 
@@ -385,8 +330,6 @@ def build_pipeline():
     # Phase 4: Validation chain
     graph.add_conditional_edges("ast_validator", route_ast_result)
     graph.add_conditional_edges("runtime_validator", route_runtime_result)
-    graph.add_edge("semantic_validator", "semantic_decision")
-    # semantic_decision returns Command(goto=END|"code_synthesizer")
 
     # Compile with checkpointer (required for interrupt)
     checkpointer = InMemorySaver()
