@@ -31,6 +31,7 @@ class PPTState(TypedDict):
     # Phase 2: Parallel Generation
     slide_contents: Annotated[list[dict], operator.add]   # Text branch
     slide_designs: Annotated[list[dict], operator.add]     # Design branch (images)
+    slide_infographics: Annotated[list[dict], operator.add]  # Infographic branch (data visuals)
     cover_design_image: str  # Cover slide image for style reference
 
     # Phase 3: Synthesis
@@ -59,3 +60,10 @@ class DesignGeneratorState(TypedDict):
     slide_plan: dict
     research_brief: dict
     reference_image_b64: str  # Cover image for style consistency
+
+
+class InfographicGeneratorState(TypedDict):
+    """State for infographic generation Send nodes."""
+
+    slide_plan: dict
+    research_brief: dict

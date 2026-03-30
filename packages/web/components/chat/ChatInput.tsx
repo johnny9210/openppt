@@ -22,6 +22,7 @@ export default function ChatInput() {
     setReactCode,
     setSlideCode,
     setSlideDesign,
+    setSlideInfographic,
     setWebResearch,
     setSlideSpec,
     setBriefStyle,
@@ -133,6 +134,14 @@ export default function ChatInput() {
           }
           case "design":
             setSlideDesign({
+              slide_id: data.slide_id as string,
+              type: data.type as string,
+              has_image: data.has_image as boolean,
+              image_b64: (data.image_b64 as string) || null,
+            });
+            break;
+          case "infographic":
+            setSlideInfographic({
               slide_id: data.slide_id as string,
               type: data.type as string,
               has_image: data.has_image as boolean,

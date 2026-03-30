@@ -60,6 +60,7 @@ interface AppState {
   reactCode: string;
   slideCodes: Record<string, SlideCode>;
   slideDesigns: Record<string, SlideDesign>;
+  slideInfographics: Record<string, SlideDesign>;
   webResearch: Record<string, SlideWebResearch>;
   slideSpec: SlideSpec | null;
   briefStyle: BriefStyle | null;
@@ -74,6 +75,7 @@ interface AppState {
   setReactCode: (code: string) => void;
   setSlideCode: (slide: SlideCode) => void;
   setSlideDesign: (design: SlideDesign) => void;
+  setSlideInfographic: (infographic: SlideDesign) => void;
   setWebResearch: (research: Record<string, SlideWebResearch>) => void;
   setSlideSpec: (spec: SlideSpec) => void;
   setBriefStyle: (style: BriefStyle) => void;
@@ -90,6 +92,7 @@ export const useStore = create<AppState>()((set) => ({
   reactCode: "",
   slideCodes: {},
   slideDesigns: {},
+  slideInfographics: {},
   webResearch: {},
   slideSpec: null,
   briefStyle: null,
@@ -108,6 +111,10 @@ export const useStore = create<AppState>()((set) => ({
   setSlideDesign: (design) =>
     set((state) => ({
       slideDesigns: { ...state.slideDesigns, [design.slide_id]: design },
+    })),
+  setSlideInfographic: (infographic) =>
+    set((state) => ({
+      slideInfographics: { ...state.slideInfographics, [infographic.slide_id]: infographic },
     })),
   setWebResearch: (research) => set({ webResearch: research }),
   setSlideSpec: (spec) => set({ slideSpec: spec }),

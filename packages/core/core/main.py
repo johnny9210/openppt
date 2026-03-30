@@ -83,6 +83,10 @@ async def save_session(session_id: str, state_values: dict) -> None:
             {k: v for k, v in d.items() if k != "image_b64"}
             for d in state_values.get("slide_designs", [])
         ]
+        infographics_slim = [
+            {k: v for k, v in d.items() if k != "image_b64"}
+            for d in state_values.get("slide_infographics", [])
+        ]
 
         doc = {
             "session_id": session_id,
@@ -90,6 +94,7 @@ async def save_session(session_id: str, state_values: dict) -> None:
             "research_brief": state_values.get("research_brief", {}),
             "slide_contents": state_values.get("slide_contents", []),
             "slide_designs": designs_slim,
+            "slide_infographics": infographics_slim,
             "react_code": state_values.get("react_code", ""),
             "slide_spec": state_values.get("slide_spec", {}),
             "validation_result": state_values.get("validation_result", {}),
@@ -145,6 +150,7 @@ async def generate_ppt(request: GenerateRequest):
         "research_brief": {},
         "slide_contents": [],
         "slide_designs": [],
+        "slide_infographics": [],
         "cover_design_image": "",
         "generated_slides": [],
         "react_code": "",
@@ -215,6 +221,23 @@ async def generate_ppt(request: GenerateRequest):
                                     ensure_ascii=False,
                                 ),
                                 event="design",
+                            )
+
+                    # Phase 2: Infographic images (UI preview only, not in PPT)
+                    if "slide_infographics" in update and update["slide_infographics"]:
+                        for infog in update["slide_infographics"]:
+                            yield ServerSentEvent(
+                                raw_data=json.dumps(
+                                    {
+                                        "slide_id": infog["slide_id"],
+                                        "type": infog["type"],
+                                        "has_image": infog.get("image_b64")
+                                        is not None,
+                                        "image_b64": infog.get("image_b64"),
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                                event="infographic",
                             )
 
                     # Phase 3: Synthesized slide code

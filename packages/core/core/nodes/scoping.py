@@ -165,6 +165,7 @@ Generate this key points visual structure (NO TEXT) now.
             "topic": "슬라이드 주제",
             "key_points": ["핵심 포인트1", "핵심 포인트2"],
             "design_prompt": "## Image Type\n...\n## Layout\n...\n## Visual Theme\n...\nGenerate this ... visual structure (NO TEXT) now.",
+            "infographic_prompt": "시각화가 필요한 슬라이드만 작성, 불필요하면 null",
             "data": null
         }
     ]
@@ -193,7 +194,111 @@ Generate this key points visual structure (NO TEXT) now.
 - 단계별 흐름 → process_flow
 - 시간 순서 → timeline
 - 내용 정리 → summary
-- 마지막 슬라이드 → closing"""
+- 마지막 슬라이드 → closing
+
+## infographic_prompt 작성 가이드 (선택)
+데이터 시각화나 개념 다이어그램이 효과적인 슬라이드에만 작성합니다.
+design_prompt와는 완전히 다릅니다:
+- design_prompt = 슬라이드 배경 이미지 (텍스트 없음, 장식용)
+- infographic_prompt = 데이터/개념을 설명하는 독립 인포그래픽 이미지 (텍스트/수치 포함)
+
+적합한 슬라이드 타입: data_visualization, comparison, process_flow, timeline, key_points, risk_analysis, action_plan
+부적합 (infographic_prompt를 null로): cover, closing, table_of_contents, hero, quote, summary
+전체 슬라이드의 30-50%만 인포그래픽 적용 (모든 슬라이드에 넣지 마세요)
+
+### 프롬프트 필수 구조 (5개 섹션 모두 포함할 것)
+infographic_prompt는 반드시 아래 5개 섹션을 영어로 작성하세요:
+
+**## Infographic Type & Title**
+인포그래픽 유형과 제목을 한 줄로 명시합니다.
+유형 옵션: KPI Dashboard, Bar/Line/Pie Chart, Timeline Roadmap, Process Flow,
+Comparison (Split-Screen), Funnel, Pyramid, Mind Map, Venn Diagram, Icon Grid,
+Circular Cycle, Checklist, Storyboard
+
+**## Layout**
+구체적 배치 구조를 지정합니다:
+- 전체 영역 분할 (예: "Header 15%, Main 70%, Footer 15%")
+- 카드/항목 배치 (예: "2×2 grid of metric cards", "5-column horizontal pipeline")
+- 항목 수에 맞는 레이아웃 (2개→좌우 split, 3개→1×3, 4개→2×2, 5+→vertical stack)
+- 연결 요소 (화살표, 커넥터 라인, 그라디언트 전환)
+
+**## Data & Content**
+시각화할 데이터를 항목별로 구체적으로 나열합니다:
+- 각 항목: "항목명: 수치/값 (아이콘, 색상 힌트)" 형식
+- 전체 텍스트 400단어 이하 (텍스트 렌더링 정확도 보장)
+- 구체적 수치가 없으면 예상 범위라도 기재 (웹 리서치 후 실데이터로 보강됨)
+
+**## Visual Style**
+일러스트레이션 스타일을 구체적으로 지정합니다.
+스타일 옵션: Clean Corporate Minimalist, Flat 2.0 Vector, Bold Editorial,
+Dark Mode Tech, Soft Pastel Educational, Hand-Drawn Sketchnote
+- 카드 컨테이너 디자인 (rounded corners, subtle shadows, border)
+- 아이콘 스타일 (line icons, filled badges, emoji)
+- 배경 처리 (white, light gray, subtle gradient)
+
+**## Output Spec**
+"Aspect ratio: 16:9. Include data labels and numbers on all visual elements.
+Keep total text under 400 words. Generate this infographic now."
+
+### 예시 (KPI 대시보드):
+```
+## Infographic Type & Title
+Corporate KPI Dashboard — "Q4 2025 Revenue Performance"
+
+## Layout
+- Header: Full-width title bar with accent color underline (top 12%)
+- Main area: 2×2 grid of metric cards with equal spacing (70%)
+  - Each card: Rounded rectangle, subtle shadow, icon badge top-left
+  - Bottom of each card: Mini sparkline or trend indicator
+- Footer: Full-width single-row trend line chart (18%)
+
+## Data & Content
+- Card 1: "Total Revenue $5.2M" (+20% YoY) — dollar icon, green trend arrow
+- Card 2: "New Customers 1,500" (+35%) — people icon, blue badge
+- Card 3: "Churn Rate 2.1%" (-0.5pp) — shield icon, green (positive)
+- Card 4: "NPS Score 72" (+8pts) — star icon, gold badge
+- Trend chart: Monthly revenue line Jan–Dec, highlight Q4 growth zone
+
+## Visual Style
+Clean Corporate Minimalist. Navy primary, gold accents.
+Rounded card containers (16px radius), subtle drop shadows.
+Sans-serif bold typography for numbers, regular for labels.
+White background, no decorative patterns.
+
+## Output Spec
+Aspect ratio: 16:9. Include data labels and numbers on all visual elements.
+Keep total text under 400 words. Generate this infographic now.
+```
+
+### 예시 (프로세스 플로우):
+```
+## Infographic Type & Title
+Process Flow — "SaaS Customer Journey: Awareness to Advocacy"
+
+## Layout
+- 5-column horizontal pipeline, each stage as a rounded-rectangle card
+- Connecting gradient arrows between stages
+- Top: Stage title and icon badge
+- Middle: 2-3 bullet points per stage
+- Bottom row: Key metric per stage
+
+## Data & Content
+- Stage 1: "Awareness" — eye icon, soft blue — "Content Marketing, SEO" — 10K visitors/mo
+- Stage 2: "Consideration" — magnifying glass, teal — "Free Trial, Webinars" — 15% conversion
+- Stage 3: "Decision" — checkmark, green — "Demo, Case Studies" — 8% close rate
+- Stage 4: "Onboarding" — rocket, orange — "Setup Wizard, Training" — 3-day avg activation
+- Stage 5: "Advocacy" — heart, pink — "Referral Program, Reviews" — 40% referral rate
+
+## Visual Style
+Flat 2.0 Vector with gradient overlays between stages.
+Each stage card: white background, colored top border matching stage color.
+Circular icon badges (48px) with white icons on colored background.
+Light gray overall background, clean sans-serif typography.
+
+## Output Spec
+Aspect ratio: 16:9. Include data labels and numbers on all visual elements.
+Keep total text under 400 words. Generate this infographic now.
+```"""
 
 
 async def scoping(state: PPTState, config: RunnableConfig) -> dict:

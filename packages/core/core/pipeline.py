@@ -32,6 +32,7 @@ from core.nodes.scoping import scoping
 from core.nodes.web_researcher import web_researcher
 from core.nodes.text_generator import text_generator
 from core.nodes.design_generator import cover_design_generator, design_generator
+from core.nodes.infographic_generator import infographic_generator
 from core.nodes.code_synthesizer import code_synthesizer
 from core.nodes.code_assembly import code_assembly
 from core.nodes.ast_validator import ast_validator
@@ -62,6 +63,10 @@ def cover_and_text_dispatcher(state: PPTState) -> Command:
         # Cover design generator runs separately (first slide)
         if slide["type"] == "cover":
             sends.append(Send("cover_design_generator", payload))
+
+        # Infographic generator for slides with infographic_prompt
+        if slide.get("infographic_prompt"):
+            sends.append(Send("infographic_generator", payload))
 
     return Command(goto=sends)
 
@@ -289,10 +294,11 @@ def build_pipeline():
     # Phase 1.5: Web Research (Tavily)
     graph.add_node("web_researcher", progress_web_researcher)
 
-    # Phase 2a: Cover + Text parallel dispatch
+    # Phase 2a: Cover + Text + Infographic parallel dispatch
     graph.add_node("cover_and_text_dispatcher", progress_cover_and_text_dispatcher)
     graph.add_node("text_generator", text_generator)
     graph.add_node("cover_design_generator", cover_design_generator)
+    graph.add_node("infographic_generator", infographic_generator)
 
     # Phase 2b: Remaining design dispatch (with cover as reference)
     graph.add_node("remaining_design_dispatcher", progress_remaining_design_dispatcher)
@@ -315,9 +321,10 @@ def build_pipeline():
     graph.add_edge("web_researcher", "cover_and_text_dispatcher")
     # cover_and_text_dispatcher returns Command(goto=list[Send])
 
-    # Phase 2a: Fan-in after text + cover design complete
+    # Phase 2a: Fan-in after text + cover design + infographic complete
     graph.add_edge("text_generator", "remaining_design_dispatcher")
     graph.add_edge("cover_design_generator", "remaining_design_dispatcher")
+    graph.add_edge("infographic_generator", "remaining_design_dispatcher")
     # remaining_design_dispatcher returns Command(goto=list[Send]) or Command(goto="code_synthesizer")
 
     # Phase 2b: Fan-in after remaining designs complete

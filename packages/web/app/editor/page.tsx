@@ -8,16 +8,17 @@ import SlidePreview from "@/components/preview/SlidePreview";
 import type { SlidePreviewHandle } from "@/components/preview/SlidePreview";
 import CodeViewer from "@/components/code/CodeViewer";
 import DesignViewer from "@/components/design/DesignViewer";
+import InfographViewer from "@/components/infograph/InfographViewer";
 import WebSearchViewer from "@/components/search/WebSearchViewer";
 import { useStore } from "@/lib/store";
 import { exportViaDomToPptx } from "@/lib/pptx/dom-export";
 
 export default function EditorPage() {
-  const [activeTab, setActiveTab] = useState<"preview" | "code" | "design" | "search">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "code" | "design" | "infograph" | "search">("preview");
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const previewRef = useRef<SlidePreviewHandle>(null);
-  const { reactCode, slideCodes, slideDesigns, webResearch, slideSpec, isGenerating, progressSteps, validationResult, tokenUsage, sessionId } = useStore();
+  const { reactCode, slideCodes, slideDesigns, slideInfographics, webResearch, slideSpec, isGenerating, progressSteps, validationResult, tokenUsage, sessionId } = useStore();
 
   const slideCount = Object.keys(slideCodes).length;
   const canExport = !!slideSpec && !!reactCode && !isGenerating;
@@ -171,6 +172,21 @@ export default function EditorPage() {
               )}
             </button>
             <button
+              onClick={() => setActiveTab("infograph")}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === "infograph"
+                  ? "text-blue-500 border-b-2 border-blue-400"
+                  : "text-gray-400 hover:text-gray-500"
+              }`}
+            >
+              Infograph
+              {Object.keys(slideInfographics).length > 0 && (
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600">
+                  {Object.values(slideInfographics).filter(d => d.has_image).length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab("search")}
               className={`px-4 py-2 text-sm font-medium ${
                 activeTab === "search"
@@ -193,8 +209,9 @@ export default function EditorPage() {
               <SlidePreview ref={previewRef} code={reactCode} spec={slideSpec} slideCodes={slideCodes} />
             </div>
             {activeTab === "code" && <CodeViewer code={reactCode} slideCodes={slideCodes} />}
-            {activeTab === "search" && <WebSearchViewer webResearch={webResearch} />}
             {activeTab === "design" && <DesignViewer slideDesigns={slideDesigns} />}
+            {activeTab === "infograph" && <InfographViewer slideDesigns={slideInfographics} />}
+            {activeTab === "search" && <WebSearchViewer webResearch={webResearch} />}
           </div>
         </div>
       </div>
